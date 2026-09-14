@@ -1,0 +1,96 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df2b14eeece18734e9eb17cc4601563e, type: 3}
+  m_Name: DefaultItemTiers
+  m_EditorClassIdentifier: Assembly-CSharp::MergeItemTierTable
+  tiers:
+  - displayName: Tier 01
+    radius: 0.18
+    mass: 0.35
+    mergeScore: 1
+    placeholderColor: {r: 0.55, g: 0.07, b: 0.1, a: 1}
+    overrideMesh: {fileID: 0}
+    overrideMaterial: {fileID: 2100000, guid: 40c6d4e8f32d4094cac4229e362c79e3, type: 2}
+  - displayName: Tier 02
+    radius: 0.23
+    mass: 0.45
+    mergeScore: 3
+    placeholderColor: {r: 0.9, g: 0.16, b: 0.16, a: 1}
+    overrideMesh: {fileID: 0}
+    overrideMaterial: {fileID: 2100000, guid: 50b0ed94b303593418a8a0148bba675c, type: 2}
+  - displayName: Tier 03
+    radius: 0.33
+    mass: 0.7
+    mergeScore: 6
+    placeholderColor: {r: 0.55, g: 0.25, b: 0.72, a: 1}
+    overrideMesh: {fileID: 0}
+    overrideMaterial: {fileID: 2100000, guid: 95e592baaa363f8459672ff0711f952b, type: 2}
+  - displayName: Tier 04
+    radius: 0.43
+    mass: 1
+    mergeScore: 10
+    placeholderColor: {r: 0.95, g: 0.7, b: 0.18, a: 1}
+    overrideMesh: {fileID: 0}
+    overrideMaterial: {fileID: 2100000, guid: f7401652ea25ff448824f7217b2afe68, type: 2}
+  - displayName: Tier 05
+    radius: 0.5
+    mass: 1.3
+    mergeScore: 15
+    placeholderColor: {r: 0.98, g: 0.47, b: 0.1, a: 1}
+    overrideMesh: {fileID: 0}
+    overrideMaterial: {fileID: 2100000, guid: ab1b97ffad2dd304fa5039dfce5e842b, type: 2}
+  - displayName: Tier 06
+    radius: 0.58
+    mass: 1.7
+    mergeScore: 21
+    placeholderColor: {r: 0.8, g: 0.1, b: 0.28, a: 1}
+    overrideMesh: {fileID: 0}
+    overrideMaterial: {fileID: 2100000, guid: 3b82af78839c28f438ae552ad61853a4, type: 2}
+  - displayName: Tier 07
+    radius: 0.67
+    mass: 2.2
+    mergeScore: 28
+    placeholderColor: {r: 0.78, g: 0.9, b: 0.55, a: 1}
+    overrideMesh: {fileID: 0}
+    overrideMaterial: {fileID: 2100000, guid: f8cfb59e04a63aa4a8c06e3bb732016e, type: 2}
+  - displayName: Tier 08
+    radius: 0.84
+    mass: 3
+    mergeScore: 36
+    placeholderColor: {r: 0.96, g: 0.6, b: 0.72, a: 1}
+    overrideMesh: {fileID: 0}
+    overrideMaterial: {fileID: 2100000, guid: 7cb1c6617a2eced498f6485448f123db, type: 2}
+  - displayName: Tier 09
+    radius: 1.06
+    mass: 4
+    mergeScore: 45
+    placeholderColor: {r: 0.95, g: 0.83, b: 0.3, a: 1}
+    overrideMesh: {fileID: 0}
+    overrideMaterial: {fileID: 2100000, guid: feda75596d6d1f442bf2cd593fd47e6f, type: 2}
+  - displayName: Tier 10
+    radius: 1.21
+    mass: 5.2
+    mergeScore: 55
+    placeholderColor: {r: 0.55, g: 0.85, b: 0.45, a: 1}
+    overrideMesh: {fileID: 0}
+    overrideMaterial: {fileID: 2100000, guid: dc49afec587343944a14263e5edf2ed8, type: 2}
+  - displayName: Tier 11
+    radius: 1.43
+    mass: 6.5
+    mergeScore: 66
+    placeholderColor: {r: 0.13, g: 0.45, b: 0.22, a: 1}
+    overrideMesh: {fileID: 0}
+    overrideMaterial: {fileID: 2100000, guid: 0fe42d5d58c9fce41ac39a8623d5cb63, type: 2}
+  initialSpawnableTierCount: 2
+  maxSpawnableTierCount: 5
+  topTierPopScore: 100
+  topTierMergePops: 1
