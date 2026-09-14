@@ -17,6 +17,7 @@ public class MergeItem : MonoBehaviour
     [SerializeField] private SphereCollider sphereCollider;
     [SerializeField] private MeshFilter meshFilter;
     [SerializeField] private MeshRenderer meshRenderer;
+    [SerializeField] private FleshVisualComponent fleshVisual;
 
     private MergeItemTierTable tierTable;
     private float settleTimer;
@@ -71,6 +72,11 @@ public class MergeItem : MonoBehaviour
         {
             meshRenderer = GetComponent<MeshRenderer>();
         }
+
+        if (fleshVisual == null)
+        {
+            fleshVisual = GetComponent<FleshVisualComponent>();
+        }
     }
 
     /// <summary>Applies the tier's physical and visual values to this instance.</summary>
@@ -105,7 +111,17 @@ public class MergeItem : MonoBehaviour
             meshFilter.sharedMesh = tier.OverrideMesh;
         }
 
-        if (meshRenderer != null)
+        // The flesh renderer owns the item's look when present, so the tier colour goes to it and
+        // the MeshRenderer path is skipped entirely. Touching meshRenderer.material would
+        // instantiate a material per pooled item for a renderer the flesh visual then hides.
+        if (fleshVisual != null)
+        {
+            fleshVisual.SurfaceColor = tier.PlaceholderColor;
+        }
+
+        bool fleshOwnsAppearance = fleshVisual != null && fleshVisual.enabled && fleshVisual.HideSourceRenderer;
+
+        if (meshRenderer != null && !fleshOwnsAppearance)
         {
             if (tier.OverrideMaterial != null)
             {
