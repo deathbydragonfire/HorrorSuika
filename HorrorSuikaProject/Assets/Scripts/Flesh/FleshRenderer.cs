@@ -32,6 +32,7 @@ public class FleshRenderer : MonoBehaviour
     private const float ProxyEpsilonMargin = 8f;
     private const int MinRaymarchSteps = 8;
     private const int MaxRaymarchStepCeiling = 128;
+    private const float MaxPulseDeltaSeconds = 0.1f;
 
     private static readonly List<FleshVisualComponent> Registered = new List<FleshVisualComponent>(MaxInstances);
 
@@ -61,10 +62,35 @@ public class FleshRenderer : MonoBehaviour
     [SerializeField, Tooltip("Fragment output selector. Bring up Distance and StepCount before Shaded.")]
     private FleshDebugMode debugMode = FleshDebugMode.Shaded;
 
+    [Header("Pulse (visual only)")]
+    [SerializeField, Tooltip("Master switch for the per-instance breathing layer. Off freezes every instance at its authored radius. Affects rendering only.")]
+    private bool pulseEnabled = true;
+
+    [SerializeField, Min(0f), Tooltip("Global multiplier on every instance's pulse rate. 0 stops the pulse mid-beat instead of snapping it back.")]
+    private float pulseTimeScale = 1f;
+
     private Vector4[] sphereData;
     private Vector4[] colorData;
 
+    private float pulseTime;
+    private float lastPulseSampleTime;
+    private bool hasPulseSampleTime;
+
     private bool warnedInstanceOverflow;
+
+    /// <summary>Master switch for the cosmetic per-instance pulse.</summary>
+    public bool PulseEnabled
+    {
+        get => pulseEnabled;
+        set => pulseEnabled = value;
+    }
+
+    /// <summary>Global multiplier on every instance's pulse rate.</summary>
+    public float PulseTimeScale
+    {
+        get => pulseTimeScale;
+        set => pulseTimeScale = Mathf.Max(value, 0f);
+    }
 
     /// <summary>Sphere-tracing step ceiling per pixel.</summary>
     public int MaxRaymarchSteps
@@ -116,6 +142,8 @@ public class FleshRenderer : MonoBehaviour
 
     private void OnEnable()
     {
+        hasPulseSampleTime = false;
+
         if (!Application.isPlaying)
         {
             RenderPipelineManager.beginContextRendering += OnBeginContextRendering;
@@ -165,6 +193,7 @@ public class FleshRenderer : MonoBehaviour
     private void UpdateFleshData()
     {
         EnsureBuffers();
+        AdvancePulseClock();
 
         // A Vector4 array upload bypasses the automatic gamma-to-linear conversion that
         // Material.color performs, so the colour space has to be applied here by hand.
@@ -194,7 +223,7 @@ public class FleshRenderer : MonoBehaviour
             }
 
             Vector3 worldPosition = component.transform.position;
-            float sphereRadius = component.SphereRadius;
+            float sphereRadius = pulseEnabled ? component.GetPulsedSphereRadius(pulseTime) : component.SphereRadius;
             float blendRadius = component.BlendRadius;
             Color surfaceColor = linearColorSpace ? component.SurfaceColor.linear : component.SurfaceColor;
 
@@ -235,6 +264,27 @@ public class FleshRenderer : MonoBehaviour
         UpdateProxy(clusterMin, clusterMax);
     }
 
+    /// <summary>
+    /// Integrates the shared pulse clock from an unscaled wall clock so the beat keeps its rate in
+    /// edit mode, where neither Update nor Time.deltaTime run, and so changing the time scale bends
+    /// the beat instead of teleporting it.
+    /// </summary>
+    private void AdvancePulseClock()
+    {
+        float now = Time.realtimeSinceStartup;
+
+        if (!hasPulseSampleTime)
+        {
+            hasPulseSampleTime = true;
+            lastPulseSampleTime = now;
+            return;
+        }
+
+        float delta = Mathf.Clamp(now - lastPulseSampleTime, 0f, MaxPulseDeltaSeconds);
+        lastPulseSampleTime = now;
+        pulseTime += delta * Mathf.Max(pulseTimeScale, 0f);
+    }
+
     private void UpdateProxy(Vector3 clusterMin, Vector3 clusterMax)
     {
         if (proxyTransform == null)
@@ -256,6 +306,7 @@ public class FleshRenderer : MonoBehaviour
     {
         maxRaymarchSteps = Mathf.Clamp(maxRaymarchSteps, MinRaymarchSteps, MaxRaymarchStepCeiling);
         surfaceEpsilon = Mathf.Max(surfaceEpsilon, 1e-5f);
+        pulseTimeScale = Mathf.Max(pulseTimeScale, 0f);
 
         if (proxyRenderer == null && proxyTransform != null)
         {
