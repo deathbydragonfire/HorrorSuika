@@ -62,6 +62,13 @@ public class MergeCoordinator : MonoBehaviour
         handledPairKeys.Clear();
     }
 
+    private void OnEnable()
+    {
+        // The pending queue is static, so it survives a scene load; entries referencing items
+        // destroyed with the previous scene would otherwise be resolved against a dead pool.
+        ClearQueue();
+    }
+
     private void OnDisable()
     {
         ClearQueue();

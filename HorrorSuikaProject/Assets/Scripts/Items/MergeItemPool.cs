@@ -92,16 +92,41 @@ public class MergeItemPool : MonoBehaviour
         }
     }
 
+    /// <summary>Counts the active items currently representing the given tier.</summary>
+    public int CountActiveOfTier(int tierIndex)
+    {
+        int count = 0;
+        for (int i = 0; i < activeItems.Count; i++)
+        {
+            MergeItem item = activeItems[i];
+            if (item != null && !item.IsConsumed && item.TierIndex == tierIndex)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
     /// <summary>Pre-creates instances of the spawnable tiers so the first drops never instantiate mid-frame.</summary>
     public void Prewarm(int instancesPerTier)
     {
-        if (tierTable == null || itemPrefab == null)
+        Prewarm(instancesPerTier, tierTable != null ? tierTable.MaxSpawnableTierCount : 0);
+    }
+
+    /// <summary>
+    /// Pre-creates instances for an explicit number of tiers, because a level's spawnable tier count
+    /// rather than the table's is the authority on how many tiers can appear.
+    /// </summary>
+    public void Prewarm(int instancesPerTier, int tierCount)
+    {
+        if (tierTable == null || itemPrefab == null || instancesPerTier <= 0 || tierCount <= 0)
         {
             return;
         }
 
         List<MergeItem> warmed = new List<MergeItem>(instancesPerTier);
-        for (int tierIndex = 0; tierIndex < tierTable.MaxSpawnableTierCount; tierIndex++)
+        for (int tierIndex = 0; tierIndex < tierCount; tierIndex++)
         {
             ObjectPool<MergeItem> pool = GetPool(tierIndex);
             warmed.Clear();
