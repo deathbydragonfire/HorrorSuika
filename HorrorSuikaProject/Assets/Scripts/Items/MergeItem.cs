@@ -18,7 +18,7 @@ public class MergeItem : MonoBehaviour
     [SerializeField] private MeshFilter meshFilter;
     [SerializeField] private MeshRenderer meshRenderer;
     [SerializeField] private FleshVisualComponent fleshVisual;
-    [SerializeField] private MergeItemEyeballs eyeballs;
+    [SerializeField] private MergeItemDecorations decorations;
 
     private MergeItemTierTable tierTable;
     private float settleTimer;
@@ -52,7 +52,7 @@ public class MergeItem : MonoBehaviour
         CacheComponents();
     }
 
-private void CacheComponents()
+    private void CacheComponents()
     {
         if (body == null)
         {
@@ -79,9 +79,9 @@ private void CacheComponents()
             fleshVisual = GetComponent<FleshVisualComponent>();
         }
 
-        if (eyeballs == null)
+        if (decorations == null)
         {
-            eyeballs = GetComponent<MergeItemEyeballs>();
+            decorations = GetComponent<MergeItemDecorations>();
         }
     }
 
@@ -123,6 +123,7 @@ private void CacheComponents()
         if (fleshVisual != null)
         {
             fleshVisual.SurfaceColor = tier.PlaceholderColor;
+            fleshVisual.ApplyPulseSettings(table.Pulse);
         }
 
         bool fleshOwnsAppearance = fleshVisual != null && fleshVisual.enabled && fleshVisual.HideSourceRenderer;
@@ -153,9 +154,9 @@ private void CacheComponents()
             body.collisionDetectionMode = CollisionDetectionMode.Continuous;
         }
 
-        if (eyeballs != null)
+        if (decorations != null)
         {
-            eyeballs.PopulateForNewSpawn(TierIndex);
+            decorations.PopulateForNewSpawn(tierTable, TierIndex);
         }
     }
 
@@ -179,7 +180,7 @@ private void CacheComponents()
     }
 
     /// <summary>Clears all runtime state before the item returns to its pool.</summary>
-public void ResetForPool()
+    public void ResetForPool()
     {
         Settled = null;
         IsConsumed = false;
@@ -187,9 +188,9 @@ public void ResetForPool()
         settleTimer = 0f;
         TierIndex = -1;
 
-        if (eyeballs != null)
+        if (decorations != null)
         {
-            eyeballs.Clear();
+            decorations.Clear();
         }
 
         if (sphereCollider != null)
@@ -206,19 +207,19 @@ public void ResetForPool()
         }
     }
 
-/// <summary>Rebuilds eyeballs from both merge parents instead of rolling a fresh layout.</summary>
-    public void InheritEyeballs(MergeItemEyeballLayout first, MergeItemEyeballLayout second)
+    /// <summary>Rebuilds decorations from both merge parents instead of rolling a fresh drop.</summary>
+    public void InheritDecorations(MergeItemDecorationLayout first, MergeItemDecorationLayout second)
     {
-        if (eyeballs != null)
+        if (decorations != null)
         {
-            eyeballs.ApplyInherited(first, second);
+            decorations.ApplyInherited(tierTable, first, second);
         }
     }
 
-    /// <summary>Snapshots this item's eyeballs before it is despawned for a merge.</summary>
-    public MergeItemEyeballLayout CaptureEyeballs()
+    /// <summary>Snapshots this item's decorations before it is despawned for a merge.</summary>
+    public MergeItemDecorationLayout CaptureDecorations()
     {
-        return eyeballs != null ? eyeballs.CaptureLayout() : new MergeItemEyeballLayout(null);
+        return decorations != null ? decorations.CaptureLayout() : new MergeItemDecorationLayout(null);
     }
 
 

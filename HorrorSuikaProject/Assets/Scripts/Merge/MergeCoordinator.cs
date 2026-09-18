@@ -118,8 +118,8 @@ private void ResolvePair(PendingMerge pending)
         Vector3 mergePosition = (first.transform.position + second.transform.position) * 0.5f;
         mergePosition.z = 0f;
         Vector3 mergeVelocity = ComputeMassWeightedVelocity(first, second);
-        MergeItemEyeballLayout firstEyes = first.CaptureEyeballs();
-        MergeItemEyeballLayout secondEyes = second.CaptureEyeballs();
+        MergeItemDecorationLayout firstDecorations = first.CaptureDecorations();
+        MergeItemDecorationLayout secondDecorations = second.CaptureDecorations();
 
         first.MarkConsumed();
         second.MarkConsumed();
@@ -144,7 +144,7 @@ private void ResolvePair(PendingMerge pending)
             return;
         }
 
-        merged.InheritEyeballs(firstEyes, secondEyes);
+        merged.InheritDecorations(firstDecorations, secondDecorations);
         merged.Release();
         merged.SetVelocity(mergeVelocity);
 

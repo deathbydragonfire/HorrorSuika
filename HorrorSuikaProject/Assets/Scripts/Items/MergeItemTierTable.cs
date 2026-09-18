@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Ordered tier ladder plus the global merge rules. The single asset where art and balance get retuned.
+/// Ordered tier ladder plus the global merge and decoration rules. The single asset where art and balance get retuned.
 /// </summary>
 [CreateAssetMenu(menuName = "Merge Drop/Item Tier Table", fileName = "DefaultItemTiers")]
 public class MergeItemTierTable : ScriptableObject
@@ -15,6 +15,14 @@ public class MergeItemTierTable : ScriptableObject
     [SerializeField] private int maxSpawnableTierCount = 5;
     [SerializeField] private int topTierPopScore = 100;
     [SerializeField] private bool topTierMergePops = true;
+
+    [Header("Decorations")]
+    [SerializeField, Tooltip("Prefabs that can appear on dropped blobs. Each entry has its own drop chance, tier filter, and merge inheritance.")]
+    private List<MergeItemDecorationDefinition> decorations = new List<MergeItemDecorationDefinition>();
+
+    [Header("Pulse")]
+    [SerializeField, Tooltip("Cosmetic breathing applied to every flesh blob. Does not affect colliders or merge radii.")]
+    private FleshPulseSettings pulse = new FleshPulseSettings();
 
     /// <summary>All tiers, lowest first.</summary>
     public IReadOnlyList<MergeItemTier> Tiers => tiers;
@@ -33,6 +41,12 @@ public class MergeItemTierTable : ScriptableObject
 
     /// <summary>When true two top-tier items pop instead of producing a further tier.</summary>
     public bool TopTierMergePops => topTierMergePops;
+
+    /// <summary>Global decoration prefabs that can appear on blobs, independent of any one tier's look.</summary>
+    public IReadOnlyList<MergeItemDecorationDefinition> Decorations => decorations;
+
+    /// <summary>Cosmetic pulse applied to every flesh blob on this table.</summary>
+    public FleshPulseSettings Pulse => pulse;
 
     /// <summary>Returns the tier definition at the index, or null when out of range.</summary>
     public MergeItemTier GetTier(int tierIndex)
@@ -92,5 +106,28 @@ public class MergeItemTierTable : ScriptableObject
 
             tier.ClampValues(MinimumRadius, MinimumMass);
         }
+
+        if (decorations == null)
+        {
+            decorations = new List<MergeItemDecorationDefinition>();
+        }
+
+        for (int i = 0; i < decorations.Count; i++)
+        {
+            MergeItemDecorationDefinition decoration = decorations[i];
+            if (decoration == null)
+            {
+                continue;
+            }
+
+            decoration.ClampValues();
+        }
+
+        if (pulse == null)
+        {
+            pulse = new FleshPulseSettings();
+        }
+
+        pulse.ClampValues();
     }
 }

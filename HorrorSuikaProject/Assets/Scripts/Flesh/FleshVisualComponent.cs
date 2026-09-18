@@ -118,6 +118,23 @@ public class FleshVisualComponent : MonoBehaviour
     /// <summary>Conservative world-space bounding radius including the blend skirt.</summary>
     public float VisualRadius => SphereRadius + BlendRadius;
 
+    /// <summary>Applies the shared pulse authored on the tier table.</summary>
+    public void ApplyPulseSettings(FleshPulseSettings settings)
+    {
+        if (settings == null)
+        {
+            return;
+        }
+
+        pulseEnabled = settings.Enabled;
+        pulseAmplitude = settings.Amplitude;
+        pulseFrequency = settings.Frequency;
+        pulseReferenceRadius = settings.ReferenceRadius;
+        pulseSizeFalloff = settings.SizeFalloff;
+        pulseFrequencyJitter = settings.FrequencyJitter;
+        pulseHarmonicWeight = settings.HarmonicWeight;
+    }
+
     /// <summary>True when this instance breathes its rendered radius.</summary>
     public bool PulseEnabled
     {

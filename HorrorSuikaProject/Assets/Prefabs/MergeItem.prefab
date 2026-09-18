@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 8774667449935073312}
   - component: {fileID: 2362492652731379004}
   - component: {fileID: 6336975796360244476}
-  - component: {fileID: 1432390661366921349}
+  - component: {fileID: 3332642697048087914}
   m_Layer: 0
   m_Name: MergeItem
   m_TagString: Untagged
@@ -160,7 +160,7 @@ MonoBehaviour:
   meshFilter: {fileID: 4872764574340300908}
   meshRenderer: {fileID: 5915683462329613003}
   fleshVisual: {fileID: 6336975796360244476}
-  eyeballs: {fileID: 1432390661366921349}
+  decorations: {fileID: 3332642697048087914}
 --- !u!114 &6336975796360244476
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -186,7 +186,7 @@ MonoBehaviour:
   pulseSizeFalloff: 0.75
   pulseFrequencyJitter: 0.3
   pulseHarmonicWeight: 0.35
---- !u!114 &1432390661366921349
+--- !u!114 &3332642697048087914
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -195,8 +195,6 @@ MonoBehaviour:
   m_GameObject: {fileID: 4857933282590782364}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 04cedcfa5e01a014ebf20f4374a13211, type: 3}
+  m_Script: {fileID: 11500000, guid: 887832cfba5a5d048be957f3f4f0e796, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MergeItemEyeballs
-  eyeballPrefab: {fileID: 3283533217541906186, guid: 140cda0b8a8ba9a4b92349a268e0e3e4, type: 3}
-  eyeballWorldRadius: 0.14
+  m_EditorClassIdentifier: Assembly-CSharp::MergeItemDecorations

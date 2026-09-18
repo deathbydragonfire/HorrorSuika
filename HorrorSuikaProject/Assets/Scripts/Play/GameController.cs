@@ -59,6 +59,7 @@ public class GameController : MonoBehaviour
     [SerializeField] private ScoreController scoreController;
     [SerializeField] private LevelObjectiveTracker objectiveTracker;
     [SerializeField] private PlayfieldEscapeGuard escapeGuard;
+    [SerializeField] private FleshRenderer fleshRenderer;
 
     [Header("Scene")]
     [SerializeField] private PlayfieldBounds playfieldBounds;
@@ -111,6 +112,7 @@ public class GameController : MonoBehaviour
 
         ResolveLevel();
         activeTierTable = CurrentLevel != null ? CurrentLevel.ResolveTierTable(tierTable) : tierTable;
+        ApplyFleshPulse();
 
         itemPool.Configure(activeTierTable, itemPrefab, itemRoot);
         mergeCoordinator.Configure(activeTierTable, itemPool);
@@ -187,6 +189,7 @@ public class GameController : MonoBehaviour
     public void StartGame()
     {
         activeTierTable = CurrentLevel != null ? CurrentLevel.ResolveTierTable(tierTable) : tierTable;
+        ApplyFleshPulse();
 
         if (shapeHost != null && CurrentLevel != null && CurrentLevel.ShapePrefab != null)
         {
@@ -329,6 +332,22 @@ public class GameController : MonoBehaviour
         }
 
         FailLevel(LevelFailureReason.OutOfDrops);
+    }
+
+    private void ApplyFleshPulse()
+    {
+        if (fleshRenderer == null)
+        {
+            fleshRenderer = FindFirstObjectByType<FleshRenderer>();
+        }
+
+        MergeItemTierTable table = ActiveTierTable;
+        if (fleshRenderer == null || table == null)
+        {
+            return;
+        }
+
+        fleshRenderer.ApplyPulseSettings(table.Pulse);
     }
 
     private void ResolveLevel()

@@ -78,6 +78,18 @@ public class FleshRenderer : MonoBehaviour
 
     private bool warnedInstanceOverflow;
 
+    /// <summary>Applies the shared pulse authored on the tier table.</summary>
+    public void ApplyPulseSettings(FleshPulseSettings settings)
+    {
+        if (settings == null)
+        {
+            return;
+        }
+
+        pulseEnabled = settings.Enabled;
+        pulseTimeScale = Mathf.Max(settings.TimeScale, 0f);
+    }
+
     /// <summary>Master switch for the cosmetic per-instance pulse.</summary>
     public bool PulseEnabled
     {

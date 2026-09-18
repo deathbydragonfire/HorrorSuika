@@ -94,3 +94,23 @@ MonoBehaviour:
   maxSpawnableTierCount: 5
   topTierPopScore: 100
   topTierMergePops: 1
+  decorations:
+  - displayName: Human Eyeball
+    prefab: {fileID: 3283533217541906186, guid: 140cda0b8a8ba9a4b92349a268e0e3e4, type: 3}
+    dropChance: 0.7
+    maxDropTierIndex: 0
+    inheritOnMerge: 1
+    worldRadius: 0.14
+    scaleWithItem: 0
+    faceCameraAtRest: 1
+    randomRollDegrees: 12
+    applyHostMaterialToSkinnedMeshes: 1
+  pulse:
+    enabled: 1
+    amplitude: 0
+    frequency: 0.55
+    referenceRadius: 0.5
+    sizeFalloff: 0.75
+    frequencyJitter: 0.3
+    harmonicWeight: 0.35
+    timeScale: 1
