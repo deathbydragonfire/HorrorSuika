@@ -94,7 +94,7 @@ public class MergeCoordinator : MonoBehaviour
         drainBuffer.Clear();
     }
 
-    private void ResolvePair(PendingMerge pending)
+private void ResolvePair(PendingMerge pending)
     {
         MergeItem first = pending.First;
         MergeItem second = pending.Second;
@@ -118,6 +118,8 @@ public class MergeCoordinator : MonoBehaviour
         Vector3 mergePosition = (first.transform.position + second.transform.position) * 0.5f;
         mergePosition.z = 0f;
         Vector3 mergeVelocity = ComputeMassWeightedVelocity(first, second);
+        MergeItemEyeballLayout firstEyes = first.CaptureEyeballs();
+        MergeItemEyeballLayout secondEyes = second.CaptureEyeballs();
 
         first.MarkConsumed();
         second.MarkConsumed();
@@ -142,6 +144,7 @@ public class MergeCoordinator : MonoBehaviour
             return;
         }
 
+        merged.InheritEyeballs(firstEyes, secondEyes);
         merged.Release();
         merged.SetVelocity(mergeVelocity);
 

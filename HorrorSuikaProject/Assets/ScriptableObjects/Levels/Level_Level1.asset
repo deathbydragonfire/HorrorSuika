@@ -15,7 +15,7 @@ MonoBehaviour:
   levelId: level_level1
   displayName: Level1
   tierTable: {fileID: 0}
-  shapePrefab: {fileID: 0}
+  shapePrefab: {fileID: 1017664861694311850, guid: c2bde8dce47b09140a971ee6c8d9ea61, type: 3}
   shapeDefinition: {fileID: 11400000, guid: bb9342d52c40fbe4f82ca9fa10018785, type: 2}
   objectives:
   - objectiveType: 0

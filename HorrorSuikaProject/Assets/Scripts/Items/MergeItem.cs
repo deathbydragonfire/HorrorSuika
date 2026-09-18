@@ -18,6 +18,7 @@ public class MergeItem : MonoBehaviour
     [SerializeField] private MeshFilter meshFilter;
     [SerializeField] private MeshRenderer meshRenderer;
     [SerializeField] private FleshVisualComponent fleshVisual;
+    [SerializeField] private MergeItemEyeballs eyeballs;
 
     private MergeItemTierTable tierTable;
     private float settleTimer;
@@ -51,7 +52,7 @@ public class MergeItem : MonoBehaviour
         CacheComponents();
     }
 
-    private void CacheComponents()
+private void CacheComponents()
     {
         if (body == null)
         {
@@ -76,6 +77,11 @@ public class MergeItem : MonoBehaviour
         if (fleshVisual == null)
         {
             fleshVisual = GetComponent<FleshVisualComponent>();
+        }
+
+        if (eyeballs == null)
+        {
+            eyeballs = GetComponent<MergeItemEyeballs>();
         }
     }
 
@@ -111,9 +117,9 @@ public class MergeItem : MonoBehaviour
             meshFilter.sharedMesh = tier.OverrideMesh;
         }
 
-        // The flesh renderer owns the item's look when present, so the tier colour goes to it and
-        // the MeshRenderer path is skipped entirely. Touching meshRenderer.material would
-        // instantiate a material per pooled item for a renderer the flesh visual then hides.
+        // Flesh owns the visible sphere, but the MeshRenderer still holds the tier material so
+        // decorations such as eyelids can share it. Avoid meshRenderer.material here: that would
+        // instantiate a unique copy per pooled item for a renderer the flesh visual then hides.
         if (fleshVisual != null)
         {
             fleshVisual.SurfaceColor = tier.PlaceholderColor;
@@ -121,13 +127,13 @@ public class MergeItem : MonoBehaviour
 
         bool fleshOwnsAppearance = fleshVisual != null && fleshVisual.enabled && fleshVisual.HideSourceRenderer;
 
-        if (meshRenderer != null && !fleshOwnsAppearance)
+        if (meshRenderer != null)
         {
             if (tier.OverrideMaterial != null)
             {
                 meshRenderer.sharedMaterial = tier.OverrideMaterial;
             }
-            else
+            else if (!fleshOwnsAppearance)
             {
                 meshRenderer.material.color = tier.PlaceholderColor;
             }
@@ -145,6 +151,11 @@ public class MergeItem : MonoBehaviour
             body.linearVelocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
             body.collisionDetectionMode = CollisionDetectionMode.Continuous;
+        }
+
+        if (eyeballs != null)
+        {
+            eyeballs.PopulateForNewSpawn(TierIndex);
         }
     }
 
@@ -168,13 +179,18 @@ public class MergeItem : MonoBehaviour
     }
 
     /// <summary>Clears all runtime state before the item returns to its pool.</summary>
-    public void ResetForPool()
+public void ResetForPool()
     {
         Settled = null;
         IsConsumed = false;
         hasSettled = false;
         settleTimer = 0f;
         TierIndex = -1;
+
+        if (eyeballs != null)
+        {
+            eyeballs.Clear();
+        }
 
         if (sphereCollider != null)
         {
@@ -189,6 +205,22 @@ public class MergeItem : MonoBehaviour
             body.isKinematic = true;
         }
     }
+
+/// <summary>Rebuilds eyeballs from both merge parents instead of rolling a fresh layout.</summary>
+    public void InheritEyeballs(MergeItemEyeballLayout first, MergeItemEyeballLayout second)
+    {
+        if (eyeballs != null)
+        {
+            eyeballs.ApplyInherited(first, second);
+        }
+    }
+
+    /// <summary>Snapshots this item's eyeballs before it is despawned for a merge.</summary>
+    public MergeItemEyeballLayout CaptureEyeballs()
+    {
+        return eyeballs != null ? eyeballs.CaptureLayout() : new MergeItemEyeballLayout(null);
+    }
+
 
     /// <summary>Applies a starting velocity, used when a merge inherits the momentum of its sources.</summary>
     public void SetVelocity(Vector3 linearVelocity)
