@@ -151,7 +151,8 @@ public class GameController : MonoBehaviour
         itemDropper.ItemDropped += OnItemDropped;
 
         SetUpRestartAction();
-        itemPool.Prewarm(PrewarmInstancesPerTier, ResolveMaxTierCount());
+        int prewarmTierCount = activeTierTable != null ? activeTierTable.MaxTierIndex + 1 : ResolveMaxTierCount();
+        itemPool.Prewarm(PrewarmInstancesPerTier, prewarmTierCount);
     }
 
     private void Start()

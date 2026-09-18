@@ -22,6 +22,9 @@ public class LevelDefinition : ScriptableObject
     [Tooltip("Baked container prefab carrying a PlayfieldShape component.")]
     [SerializeField] private GameObject shapePrefab;
 
+    [Tooltip("Curve asset the level author edits. Editor-time only; runtime reads ShapePrefab.")]
+    [SerializeField] private PlayfieldShapeDefinition shapeDefinition;
+
     [Tooltip("Every condition that must hold for the level to be won.")]
     [SerializeField] private List<LevelObjective> objectives = new List<LevelObjective>();
 
@@ -55,6 +58,9 @@ public class LevelDefinition : ScriptableObject
     /// <summary>Baked container prefab for this level.</summary>
     public GameObject ShapePrefab => shapePrefab;
 
+    /// <summary>Curve asset this level was authored from; unused at runtime.</summary>
+    public PlayfieldShapeDefinition ShapeDefinition => shapeDefinition;
+
     /// <summary>Every condition that must hold for the level to be won.</summary>
     public IReadOnlyList<LevelObjective> Objectives => objectives;
 
@@ -69,6 +75,12 @@ public class LevelDefinition : ScriptableObject
 
     /// <summary>How long the board may keep settling after the last objective completes.</summary>
     public float VictorySettleTimeout => Mathf.Max(MinimumVictorySettleTimeout, victorySettleTimeout);
+
+    /// <summary>Authored starting spawnable-tier count; 0 means use the resolved table.</summary>
+    public int InitialSpawnableTierCount => Mathf.Max(0, initialSpawnableTierCount);
+
+    /// <summary>Authored spawnable-tier ceiling; 0 means use the resolved table.</summary>
+    public int MaxSpawnableTierCount => Mathf.Max(0, maxSpawnableTierCount);
 
     /// <summary>Resolves the table this level runs on, falling back to the supplied default.</summary>
     public MergeItemTierTable ResolveTierTable(MergeItemTierTable fallback)

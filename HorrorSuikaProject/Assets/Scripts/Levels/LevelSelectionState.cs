@@ -36,6 +36,14 @@ public class LevelSelectionState : ScriptableObject
     /// Resolves which level to play: the explicit selection, else the first level the player has not
     /// completed, else the first entry. This is what lets the game scene be pressed Play directly.
     /// </summary>
+    public LevelDefinition ResolveOrDefault(LevelSequence sequence)
+    {
+        return ResolveOrDefault(sequence, out _);
+    }
+
+    /// <summary>
+    /// Resolves which level to play and the sequence index that goes with it.
+    /// </summary>
     public LevelDefinition ResolveOrDefault(LevelSequence sequence, out int resolvedIndex)
     {
         if (selectedLevel != null)

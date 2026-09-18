@@ -233,21 +233,7 @@ public class LevelObjectiveTracker : MonoBehaviour
             return 0;
         }
 
-        IReadOnlyList<MergeItem> items = itemPool.ActiveItems;
         MergeItem held = itemDropper != null ? itemDropper.HeldItem : null;
-        int count = 0;
-
-        for (int i = 0; i < items.Count; i++)
-        {
-            MergeItem item = items[i];
-            if (item == null || item == held || item.IsConsumed || item.TierIndex != tierIndex)
-            {
-                continue;
-            }
-
-            count++;
-        }
-
-        return count;
+        return itemPool.CountActiveOfTier(tierIndex, held);
     }
 }

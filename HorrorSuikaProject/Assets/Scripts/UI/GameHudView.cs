@@ -37,6 +37,9 @@ public class GameHudView : MonoBehaviour
     [SerializeField] private Button retryButton;
     [SerializeField] private Button levelSelectButton;
 
+    [Tooltip("Optional Level Select control on the game-over panel so a loss can still return to the menu.")]
+    [SerializeField] private Button gameOverLevelSelectButton;
+
     private readonly List<LevelObjectiveRowView> objectiveRows = new List<LevelObjectiveRowView>();
 
     private MergeItemTierTable tierTable;
@@ -88,6 +91,7 @@ public class GameHudView : MonoBehaviour
         BindButton(retryButton, OnRestartClicked);
         BindButton(nextLevelButton, OnNextLevelClicked);
         BindButton(levelSelectButton, OnLevelSelectClicked);
+        BindButton(gameOverLevelSelectButton, OnLevelSelectClicked);
 
         UpdateLevelLabel();
         SetGameOverVisible(false, 0);

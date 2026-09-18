@@ -95,14 +95,25 @@ public class MergeItemPool : MonoBehaviour
     /// <summary>Counts the active items currently representing the given tier.</summary>
     public int CountActiveOfTier(int tierIndex)
     {
+        return CountActiveOfTier(tierIndex, null);
+    }
+
+    /// <summary>
+    /// Counts active items of the given tier, skipping consumed entries and an optional excluded
+    /// item (the dropper's held piece, for simultaneous objectives).
+    /// </summary>
+    public int CountActiveOfTier(int tierIndex, MergeItem excluded)
+    {
         int count = 0;
         for (int i = 0; i < activeItems.Count; i++)
         {
             MergeItem item = activeItems[i];
-            if (item != null && !item.IsConsumed && item.TierIndex == tierIndex)
+            if (item == null || item == excluded || item.IsConsumed || item.TierIndex != tierIndex)
             {
-                count++;
+                continue;
             }
+
+            count++;
         }
 
         return count;

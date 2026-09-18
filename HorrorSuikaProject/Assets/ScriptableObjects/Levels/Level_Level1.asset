@@ -10,21 +10,22 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 887c97ed2d88ae542ad8deff5c05694d, type: 3}
-  m_Name: Level_05
+  m_Name: Level_Level1
   m_EditorClassIdentifier: Assembly-CSharp::LevelDefinition
-  levelId: level_05
-  displayName: 5. Hourglass
+  levelId: level_level1
+  displayName: Level1
   tierTable: {fileID: 0}
-  shapePrefab: {fileID: 6448087233976823165, guid: 8c0e7eb1eea278f48a385d73b1b7a6c7, type: 3}
+  shapePrefab: {fileID: 0}
+  shapeDefinition: {fileID: 11400000, guid: bb9342d52c40fbe4f82ca9fa10018785, type: 2}
   objectives:
   - objectiveType: 0
     countMode: 1
-    tierIndex: 6
-    requiredCount: 1
+    tierIndex: 7
+    requiredCount: 2
     descriptionOverride: 
-  initialSpawnableTierCount: 3
-  maxSpawnableTierCount: 6
+  initialSpawnableTierCount: 2
+  maxSpawnableTierCount: 5
   dropLimit: 0
-  timeLimitSeconds: 180
-  randomSeed: 1005
+  timeLimitSeconds: 0
+  randomSeed: 0
   victorySettleTimeout: 3
