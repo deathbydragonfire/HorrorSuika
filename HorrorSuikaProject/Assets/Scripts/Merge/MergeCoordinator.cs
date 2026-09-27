@@ -37,8 +37,8 @@ public class MergeCoordinator : MonoBehaviour
     private MergeItemTierTable tierTable;
     private MergeItemPool itemPool;
 
-    /// <summary>Raised after a merge produced a new item: (resultTierIndex, position, awardedScore).</summary>
-    public event Action<int, Vector3, int> MergePerformed;
+    /// <summary>Raised after a merge produced a new item: (result, resultTierIndex, position, awardedScore).</summary>
+    public event Action<MergeItem, int, Vector3, int> MergePerformed;
 
     /// <summary>Raised when two max-tier items annihilate: (position, awardedScore).</summary>
     public event Action<Vector3, int> TopTierPopped;
@@ -157,7 +157,7 @@ private void ResolvePair(PendingMerge pending)
 
         MergeItemTier sourceTierData = tierTable.GetTier(sourceTier);
         int awarded = sourceTierData != null ? sourceTierData.MergeScore : 0;
-        MergePerformed?.Invoke(resultTier, mergePosition, awarded);
+        MergePerformed?.Invoke(merged, resultTier, mergePosition, awarded);
     }
 
     private static Vector3 ComputeMassWeightedVelocity(MergeItem first, MergeItem second)

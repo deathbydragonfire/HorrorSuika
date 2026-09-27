@@ -157,7 +157,7 @@ public class LevelAuthorEditor : Editor
     {
         EditorGUILayout.LabelField("Pass Requirements", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
-            "Every objective must hold at the same time to win. Cumulative counts every item of that tier ever produced. Simultaneous counts items on the board right now (merging one away can regress it).",
+            "Every objective must hold at the same time to win. Cumulative counts every item of that tier ever produced. Simultaneous counts items on the board right now. Same-sphere decorations pass only when a merge leaves every listed decoration on the result. A drop cannot complete it, and later merges do not undo it.",
             MessageType.None);
 
         EnsureObjectiveList(author);
@@ -347,7 +347,7 @@ public class LevelAuthorEditor : Editor
         objectiveList = new ReorderableList(levelSerialized, objectives, true, true, true, true)
         {
             drawHeaderCallback = rect => EditorGUI.LabelField(rect, "Objectives"),
-            elementHeight = EditorGUIUtility.singleLineHeight * 5f + 16f,
+            elementHeightCallback = GetObjectiveElementHeight,
             drawElementCallback = (rect, index, active, focused) => DrawObjectiveElement(author, objectives.GetArrayElementAtIndex(index), rect),
             onAddCallback = list =>
             {
@@ -358,8 +358,24 @@ public class LevelAuthorEditor : Editor
                 added.FindPropertyRelative("tierIndex").intValue = 2;
                 added.FindPropertyRelative("requiredCount").intValue = 1;
                 added.FindPropertyRelative("descriptionOverride").stringValue = string.Empty;
+                added.FindPropertyRelative("requiredDecorations").ClearArray();
             }
         };
+    }
+
+    private float GetObjectiveElementHeight(int index)
+    {
+        float line = EditorGUIUtility.singleLineHeight + 2f;
+        SerializedProperty objective = objectiveList.serializedProperty.GetArrayElementAtIndex(index);
+        int type = objective.FindPropertyRelative("objectiveType").enumValueIndex;
+        int rows = 5;
+        if (type == (int)LevelObjectiveType.SameSphereDecorations)
+        {
+            int decorationCount = objective.FindPropertyRelative("requiredDecorations").arraySize;
+            rows = 4 + decorationCount;
+        }
+
+        return (line * rows) + 6f;
     }
 
     private void DrawObjectiveElement(LevelAuthor author, SerializedProperty objective, Rect rect)
@@ -380,6 +396,12 @@ public class LevelAuthorEditor : Editor
         SerializedProperty overrideProperty = objective.FindPropertyRelative("descriptionOverride");
 
         EditorGUI.PropertyField(LineRect(), typeProperty, new GUIContent("Type"));
+
+        if (typeProperty.enumValueIndex == (int)LevelObjectiveType.SameSphereDecorations)
+        {
+            DrawSameSphereFields(author, objective, requiredProperty, overrideProperty, LineRect);
+            return;
+        }
 
         bool isScore = typeProperty.enumValueIndex == (int)LevelObjectiveType.ScoreAtLeast;
         using (new EditorGUI.DisabledScope(isScore))
@@ -416,6 +438,70 @@ public class LevelAuthorEditor : Editor
         }
 
         EditorGUI.PropertyField(LineRect(), overrideProperty, new GUIContent("Label Override"));
+    }
+
+    private void DrawSameSphereFields(
+        LevelAuthor author,
+        SerializedProperty objective,
+        SerializedProperty requiredProperty,
+        SerializedProperty overrideProperty,
+        System.Func<Rect> lineRect)
+    {
+        requiredProperty.intValue = Mathf.Max(1, EditorGUI.IntField(lineRect(), "Merges Required", requiredProperty.intValue));
+
+        SerializedProperty decorations = objective.FindPropertyRelative("requiredDecorations");
+        for (int i = 0; i < decorations.arraySize; i++)
+        {
+            SerializedProperty entry = decorations.GetArrayElementAtIndex(i);
+            Rect row = lineRect();
+            const float countWidth = 48f;
+            const float removeWidth = 22f;
+            Rect popupRect = new Rect(row.x, row.y, row.width - countWidth - removeWidth - 8f, row.height);
+            Rect countRect = new Rect(popupRect.xMax + 4f, row.y, countWidth, row.height);
+            Rect removeRect = new Rect(countRect.xMax + 4f, row.y, removeWidth, row.height);
+
+            SerializedProperty indexProperty = entry.FindPropertyRelative("decorationIndex");
+            SerializedProperty countProperty = entry.FindPropertyRelative("requiredCount");
+            DrawDecorationPopup(author, popupRect, indexProperty);
+            countProperty.intValue = Mathf.Max(1, EditorGUI.IntField(countRect, countProperty.intValue));
+            if (GUI.Button(removeRect, "x"))
+            {
+                decorations.DeleteArrayElementAtIndex(i);
+                break;
+            }
+        }
+
+        if (GUI.Button(lineRect(), "Add Decoration"))
+        {
+            int addedIndex = decorations.arraySize;
+            decorations.arraySize++;
+            SerializedProperty added = decorations.GetArrayElementAtIndex(addedIndex);
+            added.FindPropertyRelative("decorationIndex").intValue = 0;
+            added.FindPropertyRelative("requiredCount").intValue = 1;
+        }
+
+        EditorGUI.PropertyField(lineRect(), overrideProperty, new GUIContent("Label Override"));
+    }
+
+    private void DrawDecorationPopup(LevelAuthor author, Rect rect, SerializedProperty indexProperty)
+    {
+        MergeItemTierTable table = ResolveTierTable(author);
+        if (table == null || table.Decorations == null || table.Decorations.Count == 0)
+        {
+            indexProperty.intValue = Mathf.Max(0, EditorGUI.IntField(rect, "Decoration", indexProperty.intValue));
+            return;
+        }
+
+        string[] names = new string[table.Decorations.Count];
+        int[] values = new int[table.Decorations.Count];
+        for (int i = 0; i < table.Decorations.Count; i++)
+        {
+            MergeItemDecorationDefinition decoration = table.Decorations[i];
+            names[i] = decoration != null ? decoration.DisplayName : "(missing)";
+            values[i] = i;
+        }
+
+        indexProperty.intValue = EditorGUI.IntPopup(rect, indexProperty.intValue, names, values);
     }
 
     private MergeItemTierTable ResolveTierTable(LevelAuthor author)

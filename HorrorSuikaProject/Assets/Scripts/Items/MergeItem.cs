@@ -238,6 +238,12 @@ public class MergeItem : MonoBehaviour
         return decorations != null ? decorations.CaptureLayout() : new MergeItemDecorationLayout(null);
     }
 
+    /// <summary>How many active instances of this decoration definition are on the item.</summary>
+    public int CountDecoration(int definitionIndex)
+    {
+        return decorations != null ? decorations.CountDefinition(definitionIndex) : 0;
+    }
+
 
     /// <summary>Applies a starting velocity, used when a merge inherits the momentum of its sources.</summary>
     public void SetVelocity(Vector3 linearVelocity)

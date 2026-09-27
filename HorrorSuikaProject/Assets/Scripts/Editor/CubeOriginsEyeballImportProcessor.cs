@@ -3,12 +3,19 @@ using UnityEngine;
 
 /// <summary>
 /// Bakes uniform Blender FBX node scale into mesh vertices so decoration transforms import at scale 1.
-/// Eyeballs are then shrunk to their gameplay size. The mouth keeps the Scale Factor authored on the importer.
+/// Eyeballs and the ear are then shrunk to their gameplay size. The mouth keeps the Scale Factor authored on the importer.
 /// </summary>
 public sealed class CubeOriginsEyeballImportProcessor : AssetPostprocessor
 {
     private const float ScaleBakeEpsilon = 0.001f;
     private const float ImportedVisualScale = 0.15f;
+
+    /// <summary>
+    /// The Ear FBX node imports at scale 100. The scene preview uses 20, which is 20% of that node scale.
+    /// Baking both leaves the mesh at that size with a transform scale of 1.
+    /// </summary>
+    private const float EarVisualScale = 0.2f;
+
     private const float MouthOuterUvMax = 0.70f;
 
     private void OnPostprocessModel(GameObject root)
@@ -17,6 +24,13 @@ public sealed class CubeOriginsEyeballImportProcessor : AssetPostprocessor
         {
             BakeUniformScaleRecursive(root.transform);
             ApplyImportedVisualScale(root.transform, ImportedVisualScale);
+            return;
+        }
+
+        if (IsEarModel(assetPath))
+        {
+            BakeUniformScaleRecursive(root.transform);
+            ApplyImportedVisualScale(root.transform, EarVisualScale);
             return;
         }
 
@@ -32,6 +46,14 @@ public sealed class CubeOriginsEyeballImportProcessor : AssetPostprocessor
         string normalized = path.Replace('\\', '/');
         return normalized.IndexOf("/CubeOrigins Models/", System.StringComparison.OrdinalIgnoreCase) >= 0
             && normalized.EndsWith("Eyeball.fbx", System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsEarModel(string path)
+    {
+        string normalized = path.Replace('\\', '/');
+        return normalized.IndexOf("/CubeOrigins Models/", System.StringComparison.OrdinalIgnoreCase) >= 0
+            && (normalized.EndsWith("/Ear.fbx", System.StringComparison.OrdinalIgnoreCase)
+                || normalized.EndsWith("/Ear.blend", System.StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsMouthModel(string path)

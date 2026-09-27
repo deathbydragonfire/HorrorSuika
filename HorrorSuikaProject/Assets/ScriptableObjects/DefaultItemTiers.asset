@@ -108,6 +108,7 @@ MonoBehaviour:
     faceCameraAtRest: 1
     randomRollDegrees: 12
     applyHostMaterialToSkinnedMeshes: 1
+    applyHostMaterialToMeshRenderers: 0
   - displayName: Mouth
     prefab: {fileID: 8745758821468465153, guid: 7b5f44b7e4b3641438deae111075dc53, type: 3}
     dropChance: 0.5
@@ -121,6 +122,21 @@ MonoBehaviour:
     faceCameraAtRest: 1
     randomRollDegrees: 0
     applyHostMaterialToSkinnedMeshes: 1
+    applyHostMaterialToMeshRenderers: 0
+  - displayName: Ear
+    prefab: {fileID: 3549011321901874351, guid: c2aa05e37a1a2e040972f44421a19c3c, type: 3}
+    dropChance: 0.5
+    minDropTierIndex: 2
+    maxDropTierIndex: 2
+    inheritOnMerge: 1
+    singleInstance: 0
+    anchorToCenter: 0
+    worldRadius: 0.25
+    scaleWithItem: 0
+    faceCameraAtRest: 0
+    randomRollDegrees: 15
+    applyHostMaterialToSkinnedMeshes: 1
+    applyHostMaterialToMeshRenderers: 1
   pulse:
     enabled: 1
     amplitude: 0

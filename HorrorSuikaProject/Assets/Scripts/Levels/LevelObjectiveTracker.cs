@@ -30,7 +30,10 @@ public class LevelObjectiveTracker : MonoBehaviour
 
     private readonly List<ObjectiveProgress> progress = new List<ObjectiveProgress>();
     private readonly List<int> cumulativeCountsByTier = new List<int>();
+    private readonly List<int> sameSphereCounts = new List<int>();
     private readonly HashSet<int> reportedBadTierIndices = new HashSet<int>();
+    private readonly HashSet<int> reportedBadDecorationIndices = new HashSet<int>();
+    private bool reportedEmptyDecorationObjective;
 
     private MergeItemPool itemPool;
     private MergeCoordinator mergeCoordinator;
@@ -81,6 +84,8 @@ public class LevelObjectiveTracker : MonoBehaviour
         isActive = false;
         hasCompleted = false;
         reportedBadTierIndices.Clear();
+        reportedBadDecorationIndices.Clear();
+        reportedEmptyDecorationObjective = false;
 
         int tierCount = table != null ? table.MaxTierIndex + 1 : 0;
         cumulativeCountsByTier.Clear();
@@ -89,6 +94,7 @@ public class LevelObjectiveTracker : MonoBehaviour
             cumulativeCountsByTier.Add(0);
         }
 
+        sameSphereCounts.Clear();
         progress.Clear();
         IReadOnlyList<LevelObjective> objectives = level != null ? level.Objectives : null;
         int objectiveCount = objectives != null ? objectives.Count : 0;
@@ -98,6 +104,7 @@ public class LevelObjectiveTracker : MonoBehaviour
             int required = objective != null ? objective.RequiredCount : 1;
             string label = objective != null ? objective.BuildLabel(table) : "(missing objective)";
             progress.Add(new ObjectiveProgress(i, 0, required, false, label));
+            sameSphereCounts.Add(0);
             ProgressChanged?.Invoke(progress[i]);
         }
     }
@@ -126,9 +133,10 @@ public class LevelObjectiveTracker : MonoBehaviour
         }
     }
 
-    private void OnMergePerformed(int resultTierIndex, Vector3 position, int awardedScore)
+    private void OnMergePerformed(MergeItem result, int resultTierIndex, Vector3 position, int awardedScore)
     {
         AddCumulative(resultTierIndex);
+        CountSameSphereMerge(result);
     }
 
     private void OnItemDropped(MergeItem item)
@@ -164,7 +172,7 @@ public class LevelObjectiveTracker : MonoBehaviour
         for (int i = 0; i < progress.Count; i++)
         {
             LevelObjective objective = i < objectives.Count ? objectives[i] : null;
-            int current = EvaluateObjective(objective);
+            int current = EvaluateObjective(objective, i);
             int required = progress[i].Required;
             bool isComplete = objective != null && current >= required;
 
@@ -192,7 +200,7 @@ public class LevelObjectiveTracker : MonoBehaviour
         AllObjectivesComplete?.Invoke();
     }
 
-    private int EvaluateObjective(LevelObjective objective)
+    private int EvaluateObjective(LevelObjective objective, int index)
     {
         if (objective == null)
         {
@@ -202,6 +210,11 @@ public class LevelObjectiveTracker : MonoBehaviour
         if (objective.ObjectiveType == LevelObjectiveType.ScoreAtLeast)
         {
             return scoreController != null ? scoreController.Score : 0;
+        }
+
+        if (objective.ObjectiveType == LevelObjectiveType.SameSphereDecorations)
+        {
+            return SameSphereCount(objective, index);
         }
 
         int tierIndex = objective.TierIndex;
@@ -235,5 +248,93 @@ public class LevelObjectiveTracker : MonoBehaviour
 
         MergeItem held = itemDropper != null ? itemDropper.HeldItem : null;
         return itemPool.CountActiveOfTier(tierIndex, held);
+    }
+
+    private int SameSphereCount(LevelObjective objective, int index)
+    {
+        IReadOnlyList<LevelObjectiveDecoration> required = objective.RequiredDecorations;
+        if (required == null || required.Count == 0)
+        {
+            if (!reportedEmptyDecorationObjective)
+            {
+                reportedEmptyDecorationObjective = true;
+                Debug.LogError(
+                    $"{nameof(LevelObjectiveTracker)}: a same-sphere objective lists no decorations and will stay incomplete.",
+                    this);
+            }
+
+            return 0;
+        }
+
+        if (index < 0 || index >= sameSphereCounts.Count)
+        {
+            return 0;
+        }
+
+        return sameSphereCounts[index];
+    }
+
+    private void CountSameSphereMerge(MergeItem result)
+    {
+        if (!isActive || hasCompleted || result == null || level == null)
+        {
+            return;
+        }
+
+        IReadOnlyList<LevelObjective> objectives = level.Objectives;
+        int count = objectives != null ? objectives.Count : 0;
+        for (int i = 0; i < count && i < sameSphereCounts.Count; i++)
+        {
+            LevelObjective objective = objectives[i];
+            if (objective == null || objective.ObjectiveType != LevelObjectiveType.SameSphereDecorations)
+            {
+                continue;
+            }
+
+            IReadOnlyList<LevelObjectiveDecoration> required = objective.RequiredDecorations;
+            if (required == null || required.Count == 0)
+            {
+                continue;
+            }
+
+            if (SphereHasRequiredDecorations(result, required))
+            {
+                sameSphereCounts[i]++;
+            }
+        }
+    }
+
+    private bool SphereHasRequiredDecorations(MergeItem item, IReadOnlyList<LevelObjectiveDecoration> required)
+    {
+        int decorationCount = tierTable != null && tierTable.Decorations != null ? tierTable.Decorations.Count : 0;
+        for (int i = 0; i < required.Count; i++)
+        {
+            LevelObjectiveDecoration decoration = required[i];
+            if (decoration == null)
+            {
+                return false;
+            }
+
+            int index = decoration.DecorationIndex;
+            if (index < 0 || index >= decorationCount)
+            {
+                if (reportedBadDecorationIndices.Add(index))
+                {
+                    Debug.LogError(
+                        $"{nameof(LevelObjectiveTracker)}: objective targets decoration {index}, outside the active table " +
+                        $"({decorationCount} decorations). It will stay permanently incomplete.",
+                        this);
+                }
+
+                return false;
+            }
+
+            if (item.CountDecoration(index) < decoration.RequiredCount)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

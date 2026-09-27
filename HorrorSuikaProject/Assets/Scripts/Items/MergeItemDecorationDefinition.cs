@@ -47,6 +47,9 @@ public class MergeItemDecorationDefinition
     [SerializeField, Tooltip("Copies the blob's material onto SkinnedMeshRenderers, used by eyelids that should match the flesh.")]
     private bool applyHostMaterialToSkinnedMeshes;
 
+    [SerializeField, Tooltip("Copies the blob's material onto MeshRenderers. Leave this off when a mesh renderer keeps its own material, such as the eyeball.")]
+    private bool applyHostMaterialToMeshRenderers;
+
     /// <summary>Inspector label only.</summary>
     public string DisplayName => displayName;
 
@@ -85,6 +88,9 @@ public class MergeItemDecorationDefinition
 
     /// <summary>True when SkinnedMeshRenderers should use the blob's material.</summary>
     public bool ApplyHostMaterialToSkinnedMeshes => applyHostMaterialToSkinnedMeshes;
+
+    /// <summary>True when MeshRenderers should use the blob's material.</summary>
+    public bool ApplyHostMaterialToMeshRenderers => applyHostMaterialToMeshRenderers;
 
     /// <summary>True when a newly created blob of this tier may roll the decoration.</summary>
     public bool CanDropOnTier(int tierIndex)

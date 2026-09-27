@@ -1,15 +1,18 @@
 using UnityEngine;
 
 /// <summary>
-/// Chomps the mouth blend shape on a timed interval with random variance.
+/// Idle mouth motion is a slow breath. <see cref="Chomp"/> plays one bite over that breath:
+/// open fully, snap shut, then settle back onto the breath.
 /// </summary>
 [DisallowMultipleComponent]
 public class MouthChomp : MonoBehaviour
 {
     private const string DefaultBlendShapeName = "mouth close";
-    private const float MinimumWaitSeconds = 0.1f;
-    private const float ClosePhase = 0.35f;
-    private const float HoldPhase = 0.55f;
+    private const float OpenWeight = 0f;
+    private const float ClosedWeight = 100f;
+    private const float OpenPhase = 0.28f;
+    private const float ChompPhase = 0.55f;
+    private const float HoldPhase = 0.68f;
 
     [SerializeField, Tooltip("Mouth renderer with the chomp blend shape. Leave empty to find one on this object or its children.")]
     private SkinnedMeshRenderer mouthRenderer;
@@ -17,19 +20,29 @@ public class MouthChomp : MonoBehaviour
     [SerializeField, Tooltip("Blend shape that is fully open at 0 and closed at 100.")]
     private string blendShapeName = DefaultBlendShapeName;
 
-    [SerializeField, Min(0.1f), Tooltip("Average seconds between chomps.")]
-    private float chompInterval = 4f;
+    [Header("Breath")]
+    [SerializeField, Min(0.2f), Tooltip("Seconds for one slow open-and-close breath.")]
+    private float breathPeriod = 4f;
 
-    [SerializeField, Min(0f), Tooltip("Random seconds added or subtracted from Chomp Interval. The wait is clamped so it never goes below 0.1s.")]
-    private float intervalVariance = 1.5f;
+    [SerializeField, Range(0f, 100f), Tooltip("Blend shape weight at the open end of a breath. 0 is fully open.")]
+    private float breathOpenWeight = 20f;
 
-    [SerializeField, Min(0.04f), Tooltip("Seconds for one close, hold, and open.")]
-    private float chompDuration = 0.4f;
+    [SerializeField, Range(0f, 100f), Tooltip("Blend shape weight at the closed end of a breath. 100 is fully closed.")]
+    private float breathClosedWeight = 75f;
+
+    [SerializeField, Range(0f, 0.35f), Tooltip("How far the host sphere's rendered radius swings with the breath, as a fraction of its radius.")]
+    private float breathPulseAmplitude = 0.06f;
+
+    [Header("Bite")]
+    [SerializeField, Min(0.04f), Tooltip("Seconds for one bite: open fully, chomp shut, and return to the breath.")]
+    private float chompDuration = 0.55f;
 
     private int blendShapeIndex = -1;
-    private float waitRemaining;
+    private float breathPhase;
     private float chompElapsed;
+    private float biteStartWeight;
     private bool chomping;
+    private FleshVisualComponent hostFlesh;
 
     /// <summary>Mouth skinned mesh used for chomping. Resolved from children when unassigned.</summary>
     public SkinnedMeshRenderer MouthRenderer
@@ -41,18 +54,21 @@ public class MouthChomp : MonoBehaviour
         }
     }
 
-    /// <summary>Average seconds between chomps.</summary>
-    public float ChompInterval
-    {
-        get => chompInterval;
-        set => chompInterval = Mathf.Max(0.1f, value);
-    }
+    /// <summary>True while a bite is playing over the breath.</summary>
+    public bool IsChomping => chomping;
 
-    /// <summary>Random plus-or-minus offset applied to <see cref="ChompInterval"/>.</summary>
-    public float IntervalVariance
+    /// <summary>Plays one bite. Does nothing if a bite is already playing.</summary>
+    public void Chomp()
     {
-        get => intervalVariance;
-        set => intervalVariance = Mathf.Max(0f, value);
+        ResolveMouth();
+        if (chomping || blendShapeIndex < 0 || mouthRenderer == null)
+        {
+            return;
+        }
+
+        chomping = true;
+        chompElapsed = 0f;
+        biteStartWeight = CurrentBreathWeight();
     }
 
     private void Awake()
@@ -63,14 +79,27 @@ public class MouthChomp : MonoBehaviour
     private void OnEnable()
     {
         ResolveMouth();
-        ApplyOpen();
+        breathPhase = Random.Range(0f, Mathf.PI * 2f);
         chomping = false;
-        ScheduleNextChomp();
+        BindHost();
+        ApplyBreath();
+    }
+
+    private void Start()
+    {
+        // OnEnable can run before the nested mouth renderer finishes waking.
+        ResolveMouth();
+        BindHost();
+        ApplyBreath();
     }
 
     private void OnDisable()
     {
-        ApplyOpen();
+        if (hostFlesh != null)
+        {
+            hostFlesh.ClearBreathDrive();
+        }
+
         chomping = false;
     }
 
@@ -78,8 +107,15 @@ public class MouthChomp : MonoBehaviour
     {
         if (blendShapeIndex < 0 || mouthRenderer == null)
         {
-            return;
+            ResolveMouth();
+            if (blendShapeIndex < 0 || mouthRenderer == null)
+            {
+                return;
+            }
         }
+
+        breathPhase += Time.deltaTime * (Mathf.PI * 2f) / Mathf.Max(breathPeriod, 0.2f);
+        DriveHostPulse();
 
         if (chomping)
         {
@@ -87,12 +123,7 @@ public class MouthChomp : MonoBehaviour
             return;
         }
 
-        waitRemaining -= Time.deltaTime;
-        if (waitRemaining <= 0f)
-        {
-            chomping = true;
-            chompElapsed = 0f;
-        }
+        ApplyBreath();
     }
 
     private void AdvanceChomp()
@@ -100,43 +131,71 @@ public class MouthChomp : MonoBehaviour
         chompElapsed += Time.deltaTime;
         float duration = Mathf.Max(0.04f, chompDuration);
         float t = Mathf.Clamp01(chompElapsed / duration);
-        float closeAmount;
-        if (t < ClosePhase)
-        {
-            closeAmount = t / ClosePhase;
-        }
-        else if (t < HoldPhase)
-        {
-            closeAmount = 1f;
-        }
-        else
-        {
-            closeAmount = 1f - ((t - HoldPhase) / (1f - HoldPhase));
-        }
-
-        closeAmount = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(closeAmount));
-        mouthRenderer.SetBlendShapeWeight(blendShapeIndex, Mathf.Lerp(0f, 100f, closeAmount));
+        mouthRenderer.SetBlendShapeWeight(blendShapeIndex, BiteWeight(t));
 
         if (t >= 1f)
         {
-            ApplyOpen();
             chomping = false;
-            ScheduleNextChomp();
+            ApplyBreath();
         }
     }
 
-    private void ScheduleNextChomp()
+    /// <summary>Opens from the current breath, snaps shut, then eases back onto the moving breath.</summary>
+    private float BiteWeight(float t)
     {
-        float wait = chompInterval + Random.Range(-intervalVariance, intervalVariance);
-        waitRemaining = Mathf.Max(MinimumWaitSeconds, wait);
-    }
-
-    private void ApplyOpen()
-    {
-        if (mouthRenderer != null && blendShapeIndex >= 0)
+        if (t < OpenPhase)
         {
-            mouthRenderer.SetBlendShapeWeight(blendShapeIndex, 0f);
+            float u = Mathf.SmoothStep(0f, 1f, t / OpenPhase);
+            return Mathf.Lerp(biteStartWeight, OpenWeight, u);
         }
+
+        if (t < ChompPhase)
+        {
+            float u = Mathf.SmoothStep(0f, 1f, (t - OpenPhase) / (ChompPhase - OpenPhase));
+            return Mathf.Lerp(OpenWeight, ClosedWeight, u);
+        }
+
+        if (t < HoldPhase)
+        {
+            return ClosedWeight;
+        }
+
+        float settle = Mathf.SmoothStep(0f, 1f, (t - HoldPhase) / (1f - HoldPhase));
+        return Mathf.Lerp(ClosedWeight, CurrentBreathWeight(), settle);
+    }
+
+    private void ApplyBreath()
+    {
+        mouthRenderer.SetBlendShapeWeight(blendShapeIndex, CurrentBreathWeight());
+    }
+
+    /// <summary>+1 is the open, expanded end of the breath. -1 is the closed, contracted end.</summary>
+    private float BreathWave => Mathf.Sin(breathPhase);
+
+    private float CurrentBreathWeight()
+    {
+        float openAmount = BreathWave * 0.5f + 0.5f;
+        return Mathf.Lerp(breathClosedWeight, breathOpenWeight, openAmount);
+    }
+
+    private void DriveHostPulse()
+    {
+        if (hostFlesh == null)
+        {
+            BindHost();
+        }
+
+        if (hostFlesh == null)
+        {
+            return;
+        }
+
+        hostFlesh.DriveBreath(BreathWave, breathPulseAmplitude);
+    }
+
+    private void BindHost()
+    {
+        hostFlesh = GetComponentInParent<FleshVisualComponent>();
     }
 
     private void ResolveMouth()
@@ -166,8 +225,10 @@ public class MouthChomp : MonoBehaviour
 
     private void OnValidate()
     {
-        chompInterval = Mathf.Max(0.1f, chompInterval);
-        intervalVariance = Mathf.Max(0f, intervalVariance);
+        breathPeriod = Mathf.Max(0.2f, breathPeriod);
+        breathOpenWeight = Mathf.Clamp(breathOpenWeight, 0f, 100f);
+        breathClosedWeight = Mathf.Clamp(breathClosedWeight, 0f, 100f);
+        breathPulseAmplitude = Mathf.Clamp(breathPulseAmplitude, 0f, 0.35f);
         chompDuration = Mathf.Max(0.04f, chompDuration);
         if (string.IsNullOrEmpty(blendShapeName))
         {

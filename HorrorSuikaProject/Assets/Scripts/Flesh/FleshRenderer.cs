@@ -30,6 +30,9 @@ public class FleshRenderer : MonoBehaviour
     /// <summary>Hard instance ceiling. Must match MAX_FLESH_INSTANCES in FleshSDF.hlsl.</summary>
     public const int MaxInstances = 48;
 
+    /// <summary>Hard cavity ceiling for mouths and eye sockets. Must match MAX_FLESH_CAVITIES in FleshSDF.hlsl.</summary>
+    public const int MaxCavities = 64;
+
     private const float MinimumProxyMargin = 0.01f;
     private const float ProxyEpsilonMargin = 8f;
     private const int MinRaymarchSteps = 8;
@@ -37,10 +40,14 @@ public class FleshRenderer : MonoBehaviour
     private const float MaxPulseDeltaSeconds = 0.1f;
 
     private static readonly List<FleshVisualComponent> Registered = new List<FleshVisualComponent>(MaxInstances);
+    private static readonly List<FleshMouthCavity> Cavities = new List<FleshMouthCavity>(MaxCavities);
 
     private static readonly int SphereId = Shader.PropertyToID("_FleshSphere");
     private static readonly int ColorId = Shader.PropertyToID("_FleshColor");
     private static readonly int TierId = Shader.PropertyToID("_FleshTier");
+    private static readonly int CavityCenterId = Shader.PropertyToID("_FleshCavityCenter");
+    private static readonly int CavityAxisId = Shader.PropertyToID("_FleshCavityAxis");
+    private static readonly int CavityCountId = Shader.PropertyToID("_FleshCavityCount");
     private static readonly int BoundsMinId = Shader.PropertyToID("_FleshBoundsMin");
     private static readonly int BoundsMaxId = Shader.PropertyToID("_FleshBoundsMax");
     private static readonly int CountId = Shader.PropertyToID("_FleshCount");
@@ -76,12 +83,15 @@ public class FleshRenderer : MonoBehaviour
     private Vector4[] colorData;
     private float[] tierData;
     private int[] uploadIndices;
+    private Vector4[] cavityCenterData;
+    private Vector4[] cavityAxisData;
 
     private float pulseTime;
     private float lastPulseSampleTime;
     private bool hasPulseSampleTime;
 
     private bool warnedInstanceOverflow;
+    private bool warnedCavityOverflow;
 
     /// <summary>Applies the shared pulse authored on the tier table.</summary>
     public void ApplyPulseSettings(FleshPulseSettings settings)
@@ -152,6 +162,28 @@ public class FleshRenderer : MonoBehaviour
         Registered.Remove(component);
     }
 
+    /// <summary>Adds a mouth hole to the render set. Safe to call before any renderer exists.</summary>
+    public static void Register(FleshMouthCavity cavity)
+    {
+        if (cavity == null || Cavities.Contains(cavity))
+        {
+            return;
+        }
+
+        Cavities.Add(cavity);
+    }
+
+    /// <summary>Removes a mouth hole from the render set.</summary>
+    public static void Unregister(FleshMouthCavity cavity)
+    {
+        if (cavity == null)
+        {
+            return;
+        }
+
+        Cavities.Remove(cavity);
+    }
+
     private void Awake()
     {
         EnsureBuffers();
@@ -172,6 +204,7 @@ public class FleshRenderer : MonoBehaviour
         RenderPipelineManager.beginContextRendering -= OnBeginContextRendering;
 
         Shader.SetGlobalInt(CountId, 0);
+        Shader.SetGlobalInt(CavityCountId, 0);
 
         if (proxyRenderer != null)
         {
@@ -214,6 +247,16 @@ public class FleshRenderer : MonoBehaviour
         if (uploadIndices == null || uploadIndices.Length != MaxInstances)
         {
             uploadIndices = new int[MaxInstances];
+        }
+
+        if (cavityCenterData == null || cavityCenterData.Length != MaxCavities)
+        {
+            cavityCenterData = new Vector4[MaxCavities];
+        }
+
+        if (cavityAxisData == null || cavityAxisData.Length != MaxCavities)
+        {
+            cavityAxisData = new Vector4[MaxCavities];
         }
     }
 
@@ -298,6 +341,7 @@ public class FleshRenderer : MonoBehaviour
         if (count == 0)
         {
             Shader.SetGlobalInt(CountId, 0);
+            Shader.SetGlobalInt(CavityCountId, 0);
             if (proxyRenderer != null)
             {
                 proxyRenderer.enabled = false;
@@ -319,8 +363,51 @@ public class FleshRenderer : MonoBehaviour
         Shader.SetGlobalInt(MaxStepsId, Mathf.Clamp(maxRaymarchSteps, MinRaymarchSteps, MaxRaymarchStepCeiling));
         Shader.SetGlobalFloat(SurfaceEpsilonId, Mathf.Max(surfaceEpsilon, 1e-5f));
         Shader.SetGlobalInt(DebugModeId, (int)debugMode);
+        UploadCavities();
 
         UpdateProxy(clusterMin, clusterMax);
+    }
+
+    /// <summary>Packs active mouth holes. The opening stays fixed while a mouth chomps.</summary>
+    private void UploadCavities()
+    {
+        int cavityCount = 0;
+        for (int i = 0; i < Cavities.Count; i++)
+        {
+            FleshMouthCavity cavity = Cavities[i];
+            if (cavity == null || !cavity.isActiveAndEnabled)
+            {
+                continue;
+            }
+
+            Vector3 center;
+            Vector3 axis;
+            float opening;
+            float depth;
+            if (!cavity.TryGetWorld(out center, out axis, out opening, out depth))
+            {
+                continue;
+            }
+
+            if (cavityCount >= MaxCavities)
+            {
+                if (!warnedCavityOverflow)
+                {
+                    warnedCavityOverflow = true;
+                    Debug.LogWarning($"{name}: more than {MaxCavities} flesh cavities are active; extras are not cut.", this);
+                }
+
+                break;
+            }
+
+            cavityCenterData[cavityCount] = new Vector4(center.x, center.y, center.z, opening);
+            cavityAxisData[cavityCount] = new Vector4(axis.x, axis.y, axis.z, depth);
+            cavityCount++;
+        }
+
+        Shader.SetGlobalVectorArray(CavityCenterId, cavityCenterData);
+        Shader.SetGlobalVectorArray(CavityAxisId, cavityAxisData);
+        Shader.SetGlobalInt(CavityCountId, cavityCount);
     }
 
     /// <summary>

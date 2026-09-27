@@ -131,9 +131,18 @@ public class LevelDefinition : ScriptableObject
         else
         {
             int maxTierIndex = tierTable != null ? tierTable.MaxTierIndex : int.MaxValue - 1;
+            int decorationCount = tierTable != null && tierTable.Decorations != null ? tierTable.Decorations.Count : 0;
+            int maxDecorationIndex = tierTable != null ? Mathf.Max(0, decorationCount - 1) : int.MaxValue - 1;
             for (int i = 0; i < objectives.Count; i++)
             {
-                objectives[i]?.ClampValues(maxTierIndex);
+                LevelObjective objective = objectives[i];
+                objective?.ClampValues(maxTierIndex, maxDecorationIndex);
+                if (objective != null
+                    && objective.ObjectiveType == LevelObjectiveType.SameSphereDecorations
+                    && (objective.RequiredDecorations == null || objective.RequiredDecorations.Count == 0))
+                {
+                    Debug.LogWarning($"{name}: a same-sphere objective lists no decorations and can therefore never be won.", this);
+                }
             }
         }
 

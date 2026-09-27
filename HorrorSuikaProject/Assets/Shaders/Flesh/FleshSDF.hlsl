@@ -1,11 +1,15 @@
 #ifndef FLESH_SDF_INCLUDED
 #define FLESH_SDF_INCLUDED
 
-// Must match FleshRenderer.MaxInstances.
+// Must match FleshRenderer.MaxInstances and FleshRenderer.MaxCavities.
 #define MAX_FLESH_INSTANCES 48
+#define MAX_FLESH_CAVITIES 64
 
 #define FLESH_FAR_DISTANCE 1.0e6
 #define FLESH_MIN_BLEND 1.0e-4
+
+// A carved hit this far inside the uncut flesh is the back of a mouth hole, not the outer surface.
+#define FLESH_CAVITY_WALL 0.02
 
 // Per-instance data, uploaded as fixed-length global arrays (no StructuredBuffer on WebGL2).
 // _FleshSphere : (worldCentre.xyz, worldRadius)
@@ -19,10 +23,17 @@
 //
 // The underlying form is always a sphere, so the field is analytic: no baked volume, no 3D
 // texture fetch, no rotation (a sphere is rotation invariant) and no voxel quantisation.
-// Layered detail such as eyes or ears is conventional geometry drawn on top, not part of this field.
+// Eyes stay conventional geometry and cut a shallow socket so the breath cannot cover the iris.
+// Mouths subtract a larger ellipsoid so the mouth mesh shows through.
 float4 _FleshSphere[MAX_FLESH_INSTANCES];
 float4 _FleshColor[MAX_FLESH_INSTANCES];
 float _FleshTier[MAX_FLESH_INSTANCES];
+
+// _FleshCavityCenter : (worldCentre.xyz, opening radius)
+// _FleshCavityAxis   : (unit axis out of the blob.xyz, depth radius)
+float4 _FleshCavityCenter[MAX_FLESH_CAVITIES];
+float4 _FleshCavityAxis[MAX_FLESH_CAVITIES];
+int _FleshCavityCount;
 
 // Cluster AABB in world space, used for the analytic ray entry/exit test.
 float4 _FleshBoundsMin;
@@ -65,8 +76,8 @@ void CommitTierGroup(inout float result, float groupDistance)
 
 /// Smooth union inside each tier, then a hard union across tiers. Instances must arrive sorted
 /// by _FleshTier so each tier is one contiguous run. Exact everywhere, so sphere tracing
-/// takes full strides.
-float SceneSDF(float3 worldPos)
+/// takes full strides. This is the uncut flesh; mouth holes are applied afterwards.
+float SceneFleshSDF(float3 worldPos)
 {
     float result = FLESH_FAR_DISTANCE;
     float groupDistance = FLESH_FAR_DISTANCE;
@@ -99,6 +110,50 @@ float SceneSDF(float3 worldPos)
     }
 
     return result;
+}
+
+/// Signed distance to one mouth ellipsoid. Opening radius is the two equal axes; depth is along
+/// the facing axis. Approximate, and close enough for sphere tracing a hole a few tenths wide.
+float CavitySDF(float3 worldPos, int i)
+{
+    float4 center = _FleshCavityCenter[i];
+    float4 axisPack = _FleshCavityAxis[i];
+    float3 axis = axisPack.xyz;
+    float3 delta = worldPos - center.xyz;
+    float along = dot(delta, axis);
+    float side = length(delta - axis * along);
+    float2 p = float2(side, along);
+    float2 r = max(float2(center.w, axisPack.w), 1.0e-4);
+    float k0 = length(p / r);
+    float k1 = length(p / (r * r));
+    return k0 * (k0 - 1.0) / max(k1, 1.0e-4);
+}
+
+/// Subtract every mouth cavity from the flesh field. Inside a cavity the result is positive,
+/// so the march continues and the first remaining surface is the far side of the hole.
+float ApplyCavities(float fleshDistance, float3 worldPos)
+{
+    float carved = fleshDistance;
+
+    [loop]
+    for (int i = 0; i < MAX_FLESH_CAVITIES; i++)
+    {
+        if (i >= _FleshCavityCount)
+        {
+            break;
+        }
+
+        carved = max(carved, -CavitySDF(worldPos, i));
+    }
+
+    return carved;
+}
+
+/// Flesh field with mouth cavities cut out. The march uses this so rays through an opening
+/// do not stop on the front of the sphere.
+float SceneSDF(float3 worldPos)
+{
+    return ApplyCavities(SceneFleshSDF(worldPos), worldPos);
 }
 
 /// Smooth union plus the analytic gradient, the blended surface colour, and the index of the

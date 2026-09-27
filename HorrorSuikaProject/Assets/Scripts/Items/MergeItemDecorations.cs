@@ -42,7 +42,12 @@ public class MergeItemDecorations : MonoBehaviour
     private const int SeparationIterations = 18;
     private const int ScatterAttemptsPerInstance = 48;
     private const float MinimumFacingDot = 0.55f;
-    private const float AnchorClearanceFacingDot = -0.15f;
+
+    /// <summary>
+    /// Furthest a decoration's outer edge may sit from the camera axis, in radians.
+    /// Past this, overlap is kept on the face instead of wrapping around the silhouette.
+    /// </summary>
+    private const float MaxSurfaceAngleRadians = 1.05f;
     private const float SeparationPadding = 1.3f;
 
     private readonly List<List<GameObject>> pools = new List<List<GameObject>>(8);
@@ -65,6 +70,21 @@ public class MergeItemDecorations : MonoBehaviour
 
     /// <summary>Active decoration count currently attached to this item.</summary>
     public int ActiveCount => spawned.Count;
+
+    /// <summary>How many active instances of this decoration definition are on the item.</summary>
+    public int CountDefinition(int definitionIndex)
+    {
+        int count = 0;
+        for (int i = 0; i < spawned.Count; i++)
+        {
+            if (spawned[i].DefinitionIndex == definitionIndex)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
 
     private void Awake()
     {
@@ -305,11 +325,16 @@ public class MergeItemDecorations : MonoBehaviour
 
         if (definition.ApplyHostMaterialToSkinnedMeshes)
         {
-            ApplyHostMaterialToSkinnedMeshes(decoration);
+            ApplyHostMaterial(decoration, skinnedMeshes: true);
+        }
+
+        if (definition.ApplyHostMaterialToMeshRenderers)
+        {
+            ApplyHostMaterial(decoration, skinnedMeshes: false);
         }
     }
 
-    private void ApplyHostMaterialToSkinnedMeshes(Transform decoration)
+    private void ApplyHostMaterial(Transform decoration, bool skinnedMeshes)
     {
         if (hostRenderer == null)
         {
@@ -322,19 +347,35 @@ public class MergeItemDecorations : MonoBehaviour
             return;
         }
 
-        SkinnedMeshRenderer[] skinned = decoration.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-        for (int i = 0; i < skinned.Length; i++)
+        if (skinnedMeshes)
         {
-            Material[] materials = skinned[i].sharedMaterials;
-            if (materials == null || materials.Length == 0)
+            SkinnedMeshRenderer[] skinned = decoration.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            for (int i = 0; i < skinned.Length; i++)
             {
-                continue;
+                AssignHostMaterialToFirstSlot(skinned[i], hostMaterial);
             }
 
-            // Slot 0 is the flesh-matching surface. Extra slots, such as lips and teeth, stay authored.
-            materials[0] = hostMaterial;
-            skinned[i].sharedMaterials = materials;
+            return;
         }
+
+        MeshRenderer[] meshes = decoration.GetComponentsInChildren<MeshRenderer>(true);
+        for (int i = 0; i < meshes.Length; i++)
+        {
+            AssignHostMaterialToFirstSlot(meshes[i], hostMaterial);
+        }
+    }
+
+    private static void AssignHostMaterialToFirstSlot(Renderer renderer, Material hostMaterial)
+    {
+        Material[] materials = renderer.sharedMaterials;
+        if (materials == null || materials.Length == 0)
+        {
+            return;
+        }
+
+        // Slot 0 is the flesh-matching surface. Extra slots, such as lips and teeth, stay authored.
+        materials[0] = hostMaterial;
+        renderer.sharedMaterials = materials;
     }
 
     private void RelaxDirections(List<Vector3> directions, List<float> radii, List<bool> anchored, Vector3 facing)
@@ -376,15 +417,16 @@ public class MergeItemDecorations : MonoBehaviour
 
                     push.Normalize();
                     float strength = (pairDot - minDot) * 0.55f + 0.08f;
-                    float capDot = clearAnchor ? AnchorClearanceFacingDot : MinimumFacingDot;
+                    float capDotA = clearAnchor ? FaceInsetDot(radii[i]) : MinimumFacingDot;
+                    float capDotB = clearAnchor ? FaceInsetDot(radii[j]) : MinimumFacingDot;
                     if (!anchorA)
                     {
-                        directions[i] = ClampToFacingCap((a + push * strength).normalized, facing, capDot);
+                        directions[i] = ClampToFacingCap((a + push * strength).normalized, facing, capDotA);
                     }
 
                     if (!anchorB)
                     {
-                        directions[j] = ClampToFacingCap((b - push * strength).normalized, facing, capDot);
+                        directions[j] = ClampToFacingCap((b - push * strength).normalized, facing, capDotB);
                     }
                 }
             }
@@ -419,7 +461,6 @@ public class MergeItemDecorations : MonoBehaviour
         }
 
         bool hasAnchor = CountUnanchored(anchored, directions.Count) < directions.Count;
-        float sampleMinDot = hasAnchor ? AnchorClearanceFacingDot : MinimumFacingDot;
         float itemRadius = mergeItem != null ? Mathf.Max(mergeItem.Radius, 0.01f) : 0.2f;
         for (int i = 0; i < directions.Count; i++)
         {
@@ -428,8 +469,9 @@ public class MergeItemDecorations : MonoBehaviour
                 continue;
             }
 
+            float sampleMinDot = hasAnchor ? FaceInsetDot(radii[i]) : MinimumFacingDot;
             Vector3 best = SampleFacingCap(facing, sampleMinDot);
-            float bestNearestDot = 2f;
+            float bestScore = float.NegativeInfinity;
             float bestFacingDot = -2f;
             bool foundSeparated = false;
 
@@ -454,9 +496,9 @@ public class MergeItemDecorations : MonoBehaviour
                     }
                 }
 
+                float facingDot = Vector3.Dot(candidate, center);
                 if (separated)
                 {
-                    float facingDot = Vector3.Dot(candidate, center);
                     if (!foundSeparated || facingDot > bestFacingDot)
                     {
                         foundSeparated = true;
@@ -467,9 +509,15 @@ public class MergeItemDecorations : MonoBehaviour
                     continue;
                 }
 
-                if (!foundSeparated && nearestDot < bestNearestDot)
+                if (foundSeparated)
                 {
-                    bestNearestDot = nearestDot;
+                    continue;
+                }
+
+                float score = facingDot - (nearestDot * 0.35f);
+                if (score > bestScore)
+                {
+                    bestScore = score;
                     best = candidate;
                 }
             }
@@ -520,6 +568,22 @@ public class MergeItemDecorations : MonoBehaviour
         }
 
         return tangent.normalized;
+    }
+
+    /// <summary>
+    /// Lowest camera-facing dot that keeps a decoration of this size on the front of the sphere.
+    /// </summary>
+    private float FaceInsetDot(float worldRadius)
+    {
+        float itemRadius = mergeItem != null ? Mathf.Max(mergeItem.Radius, 0.01f) : 0.2f;
+        float featureAngle = Mathf.Asin(Mathf.Clamp(worldRadius / itemRadius, 0f, 0.95f));
+        float maxCenterAngle = MaxSurfaceAngleRadians - featureAngle;
+        if (maxCenterAngle < 0.2f)
+        {
+            maxCenterAngle = 0.2f;
+        }
+
+        return Mathf.Cos(maxCenterAngle);
     }
 
     private static Vector3 ClampToFacingCap(Vector3 direction, Vector3 facing)

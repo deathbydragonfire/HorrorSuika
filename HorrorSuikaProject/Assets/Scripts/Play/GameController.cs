@@ -411,7 +411,7 @@ public class GameController : MonoBehaviour
         Restart();
     }
 
-    private void OnMergePerformed(int resultTierIndex, Vector3 position, int awardedScore)
+    private void OnMergePerformed(MergeItem result, int resultTierIndex, Vector3 position, int awardedScore)
     {
         scoreController.Add(awardedScore);
 

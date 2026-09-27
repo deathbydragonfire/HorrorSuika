@@ -110,6 +110,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 26e9432af8a9b6d4fad1c0a36fa2ccc7, type: 3}
       insertIndex: -1
       addedObject: {fileID: 4926018996392564837}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 26e9432af8a9b6d4fad1c0a36fa2ccc7, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3961723301635106371}
   m_SourcePrefab: {fileID: 100100000, guid: 26e9432af8a9b6d4fad1c0a36fa2ccc7, type: 3}
 --- !u!1 &3283533217541906186 stripped
 GameObject:
@@ -153,6 +156,21 @@ MonoBehaviour:
   maxVerticalLookAngle: 18
   lookSpeed: 10
   returnSpeed: 5
+--- !u!114 &3961723301635106371
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3283533217541906186}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 614c96cc8772fe24d8c123b8bdb45092, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FleshMouthCavity
+  localCenter: {x: 0, y: 0, z: -0.04}
+  openingRadius: 0.12592594
+  depthRadius: 0.22
 --- !u!4 &4041495442058002074 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1821243638109232321, guid: 26e9432af8a9b6d4fad1c0a36fa2ccc7, type: 3}

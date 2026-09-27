@@ -70,6 +70,10 @@ public class FleshVisualComponent : MonoBehaviour
     private float frequencyJitter01;
     private bool pulseSeedResolved;
 
+    private bool breathDriven;
+    private float breathWave;
+    private float breathAmplitude;
+
     /// <summary>Local-space sphere radius, before the transform's uniform scale is applied.</summary>
     public float LocalRadius
     {
@@ -156,6 +160,23 @@ public class FleshVisualComponent : MonoBehaviour
     }
 
     /// <summary>
+    /// Drives this sphere's rendered radius from an external breath. Wave is -1 at the small
+    /// end and +1 at the large end. Used so a mouth and its blob share one cycle.
+    /// </summary>
+    public void DriveBreath(float wave, float amplitude)
+    {
+        breathDriven = true;
+        breathWave = Mathf.Clamp(wave, -1f, 1f);
+        breathAmplitude = Mathf.Clamp(amplitude, 0f, MaximumResolvedAmplitude);
+    }
+
+    /// <summary>Stops an external breath drive and returns the sphere to the authored pulse.</summary>
+    public void ClearBreathDrive()
+    {
+        breathDriven = false;
+    }
+
+    /// <summary>
     /// Rendered sphere radius at the given time, with the cosmetic pulse applied. Nothing in the
     /// physics or merge path reads this, so the pulse can never change collision or gameplay.
     /// </summary>
@@ -163,7 +184,17 @@ public class FleshVisualComponent : MonoBehaviour
     public float GetPulsedSphereRadius(float time)
     {
         float radius = SphereRadius;
-        if (!pulseEnabled || pulseAmplitude <= 0f || radius <= 0f)
+        if (radius <= 0f)
+        {
+            return radius;
+        }
+
+        if (breathDriven)
+        {
+            return radius * (1f + breathAmplitude * breathWave);
+        }
+
+        if (!pulseEnabled || pulseAmplitude <= 0f)
         {
             return radius;
         }

@@ -249,6 +249,15 @@ Shader "Flesh/FleshRaymarch"
                 }
 
                 float3 hitPosition = rayOrigin + rayDirection * t;
+
+                // The far side of a mouth hole is inside the uncut flesh. Drop it so the mouth
+                // mesh, which already rendered in the geometry queue, stays visible.
+                if (SceneFleshSDF(hitPosition) < -FLESH_CAVITY_WALL)
+                {
+                    clip(-1);
+                    return half4(0, 0, 0, 0);
+                }
+
                 float4 hitClip = TransformWorldToHClip(hitPosition);
                 depthOut = hitClip.z / hitClip.w;
 
