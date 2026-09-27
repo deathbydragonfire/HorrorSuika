@@ -8,6 +8,13 @@ using UnityEngine;
 /// </summary>
 public class MergeCoordinator : MonoBehaviour
 {
+    /// <summary>
+    /// Fraction of the parents' mass-weighted velocity kept by the result. The contact impulse
+    /// has already been applied, and the next tier is lighter than both parents together, so the
+    /// full average sends the new blob through the pile.
+    /// </summary>
+    private const float MergeVelocityRetention = 0.55f;
+
     private readonly struct PendingMerge
     {
         public readonly MergeItem First;
@@ -170,6 +177,7 @@ private void ResolvePair(PendingMerge pending)
 
         Vector3 velocity = ((a.linearVelocity * a.mass) + (b.linearVelocity * b.mass)) / totalMass;
         velocity.z = 0f;
+        velocity *= MergeVelocityRetention;
         return velocity;
     }
 

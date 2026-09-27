@@ -148,7 +148,7 @@ MonoBehaviour:
   eyeball: {fileID: 4041495442058002074}
   lookCamera: {fileID: 0}
   localLookAxis: {x: 0, y: -1, z: 0}
-  lookRadius: 0.525
+  lookRadius: 5
   maxHorizontalLookAngle: 42
   maxVerticalLookAngle: 18
   lookSpeed: 10

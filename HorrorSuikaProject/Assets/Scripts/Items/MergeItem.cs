@@ -13,6 +13,18 @@ public class MergeItem : MonoBehaviour
 
     private const float SettleDelaySeconds = 0.25f;
 
+    /// <summary>Bleeds free-fall so a drop from the top of the jar does not hit at full speed.</summary>
+    private const float LinearDamping = 1.2f;
+
+    /// <summary>Slows the spin left after a glancing hit.</summary>
+    private const float AngularDamping = 0.7f;
+
+    /// <summary>
+    /// Caps how fast the solver may shove a body out of an overlap. A merge spawns a larger
+    /// sphere inside the pile, and the default (unlimited) separation velocity launches neighbours.
+    /// </summary>
+    private const float MaxDepenetrationSpeed = 3f;
+
     [SerializeField] private Rigidbody body;
     [SerializeField] private SphereCollider sphereCollider;
     [SerializeField] private MeshFilter meshFilter;
@@ -122,6 +134,7 @@ public class MergeItem : MonoBehaviour
         // instantiate a unique copy per pooled item for a renderer the flesh visual then hides.
         if (fleshVisual != null)
         {
+            fleshVisual.TierIndex = tierIndex;
             fleshVisual.SurfaceColor = tier.PlaceholderColor;
             fleshVisual.ApplyPulseSettings(table.Pulse);
         }
@@ -141,6 +154,9 @@ public class MergeItem : MonoBehaviour
         }
 
         body.mass = tier.Mass;
+        body.linearDamping = LinearDamping;
+        body.angularDamping = AngularDamping;
+        body.maxDepenetrationVelocity = MaxDepenetrationSpeed;
         body.constraints = RigidbodyConstraints.FreezePositionZ | RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationY;
         body.interpolation = RigidbodyInterpolation.Interpolate;
 

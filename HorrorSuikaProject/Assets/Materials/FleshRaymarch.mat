@@ -26,11 +26,20 @@ Material:
     m_Ints: []
     m_Floats:
     - _AmbientStrength: 0.5
-    - _BaseRoughness: 0.35
-    - _MacroColorVariation: 0.28
-    - _MacroNoiseScale: 2.4
-    - _MottleColorVariation: 0.5
-    - _MottleNoiseScale: 11
+    - _BaseRoughness: 0.58
+    - _MacroColorVariation: 0.12
+    - _MacroNoiseScale: 3.2
+    - _MottleColorVariation: 0.35
+    - _MottleNoiseScale: 6.5
+    - _PoreColorVariation: 0.08
+    - _PoreNoiseScale: 16
+    - _PoreNormalStrength: 0.28
+    - _SpecularBreakup: 1.7
+    - _SpecularStrength: 0.75
+    - _SubsurfaceStrength: 1.15
+    - _SubsurfaceWrap: 0.72
+    - _ThicknessDensity: 1.35
+    - _Translucency: 0.42
     m_Colors:
     - _BaseFleshColor: {r: 0.8, g: 0.31, b: 0.3, a: 1}
     - _DeepFleshColor: {r: 0.24, g: 0.05, b: 0.07, a: 1}

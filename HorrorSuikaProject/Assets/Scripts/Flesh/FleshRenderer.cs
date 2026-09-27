@@ -18,8 +18,10 @@ public enum FleshDebugMode
 /// <see cref="FleshVisualComponent"/> into fixed-length global shader arrays (WebGL2 has no
 /// StructuredBuffer in fragment shaders) and sizes the proxy volume the shader is rasterized on.
 ///
-/// The field is analytic: each instance contributes a sphere described by two vectors, so there is
-/// no volume texture to bind and no rotation to upload.
+/// The field is analytic: each instance contributes a sphere described by its centre, radius,
+/// colour, blend radius, and tier. Same-tier spheres are packed contiguously so the shader can
+/// smooth-union inside a tier and hard-union across tiers. There is no volume texture to bind
+/// and no rotation to upload.
 /// </summary>
 [DefaultExecutionOrder(100)]
 [ExecuteAlways]
@@ -38,6 +40,7 @@ public class FleshRenderer : MonoBehaviour
 
     private static readonly int SphereId = Shader.PropertyToID("_FleshSphere");
     private static readonly int ColorId = Shader.PropertyToID("_FleshColor");
+    private static readonly int TierId = Shader.PropertyToID("_FleshTier");
     private static readonly int BoundsMinId = Shader.PropertyToID("_FleshBoundsMin");
     private static readonly int BoundsMaxId = Shader.PropertyToID("_FleshBoundsMax");
     private static readonly int CountId = Shader.PropertyToID("_FleshCount");
@@ -71,6 +74,8 @@ public class FleshRenderer : MonoBehaviour
 
     private Vector4[] sphereData;
     private Vector4[] colorData;
+    private float[] tierData;
+    private int[] uploadIndices;
 
     private float pulseTime;
     private float lastPulseSampleTime;
@@ -200,6 +205,63 @@ public class FleshRenderer : MonoBehaviour
         {
             colorData = new Vector4[MaxInstances];
         }
+
+        if (tierData == null || tierData.Length != MaxInstances)
+        {
+            tierData = new float[MaxInstances];
+        }
+
+        if (uploadIndices == null || uploadIndices.Length != MaxInstances)
+        {
+            uploadIndices = new int[MaxInstances];
+        }
+    }
+
+    /// <summary>
+    /// Writes the active registration indices into <see cref="uploadIndices"/>, then sorts them by
+    /// tier. The shader walks that order and only smooth-unions a run of equal tiers.
+    /// </summary>
+    private int CollectActiveIndices()
+    {
+        int activeCount = 0;
+        for (int i = 0; i < Registered.Count; i++)
+        {
+            FleshVisualComponent component = Registered[i];
+            if (component == null || !component.isActiveAndEnabled)
+            {
+                continue;
+            }
+
+            if (activeCount >= MaxInstances)
+            {
+                if (!warnedInstanceOverflow)
+                {
+                    warnedInstanceOverflow = true;
+                    Debug.LogWarning($"{name}: more than {MaxInstances} flesh instances are active; extras are not rendered.", this);
+                }
+
+                break;
+            }
+
+            uploadIndices[activeCount] = i;
+            activeCount++;
+        }
+
+        for (int i = 1; i < activeCount; i++)
+        {
+            int key = uploadIndices[i];
+            int keyTier = Registered[key].TierIndex;
+            int j = i - 1;
+            while (j >= 0 && Registered[uploadIndices[j]].TierIndex > keyTier)
+            {
+                uploadIndices[j + 1] = uploadIndices[j];
+                j--;
+            }
+
+            uploadIndices[j + 1] = key;
+        }
+
+        return activeCount;
     }
 
     private void UpdateFleshData()
@@ -211,42 +273,26 @@ public class FleshRenderer : MonoBehaviour
         // Material.color performs, so the colour space has to be applied here by hand.
         bool linearColorSpace = QualitySettings.activeColorSpace == ColorSpace.Linear;
 
-        int count = 0;
+        int count = CollectActiveIndices();
         Vector3 clusterMin = Vector3.positiveInfinity;
         Vector3 clusterMax = Vector3.negativeInfinity;
 
-        for (int i = 0; i < Registered.Count; i++)
+        for (int i = 0; i < count; i++)
         {
-            FleshVisualComponent component = Registered[i];
-            if (component == null || !component.isActiveAndEnabled)
-            {
-                continue;
-            }
-
-            if (count >= MaxInstances)
-            {
-                if (!warnedInstanceOverflow)
-                {
-                    warnedInstanceOverflow = true;
-                    Debug.LogWarning($"{name}: more than {MaxInstances} flesh instances are active; extras are not rendered.", this);
-                }
-
-                break;
-            }
-
+            FleshVisualComponent component = Registered[uploadIndices[i]];
             Vector3 worldPosition = component.transform.position;
             float sphereRadius = pulseEnabled ? component.GetPulsedSphereRadius(pulseTime) : component.SphereRadius;
             float blendRadius = component.BlendRadius;
             Color surfaceColor = linearColorSpace ? component.SurfaceColor.linear : component.SurfaceColor;
 
-            sphereData[count] = new Vector4(worldPosition.x, worldPosition.y, worldPosition.z, sphereRadius);
-            colorData[count] = new Vector4(surfaceColor.r, surfaceColor.g, surfaceColor.b, blendRadius);
+            sphereData[i] = new Vector4(worldPosition.x, worldPosition.y, worldPosition.z, sphereRadius);
+            colorData[i] = new Vector4(surfaceColor.r, surfaceColor.g, surfaceColor.b, blendRadius);
+            tierData[i] = component.TierIndex;
 
             float bound = sphereRadius + blendRadius;
             Vector3 radius = new Vector3(bound, bound, bound);
             clusterMin = Vector3.Min(clusterMin, worldPosition - radius);
             clusterMax = Vector3.Max(clusterMax, worldPosition + radius);
-            count++;
         }
 
         if (count == 0)
@@ -266,6 +312,7 @@ public class FleshRenderer : MonoBehaviour
 
         Shader.SetGlobalVectorArray(SphereId, sphereData);
         Shader.SetGlobalVectorArray(ColorId, colorData);
+        Shader.SetGlobalFloatArray(TierId, tierData);
         Shader.SetGlobalVector(BoundsMinId, new Vector4(clusterMin.x, clusterMin.y, clusterMin.z, 0f));
         Shader.SetGlobalVector(BoundsMaxId, new Vector4(clusterMax.x, clusterMax.y, clusterMax.z, 0f));
         Shader.SetGlobalInt(CountId, count);

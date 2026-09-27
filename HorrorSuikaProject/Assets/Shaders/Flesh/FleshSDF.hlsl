@@ -10,15 +10,19 @@
 // Per-instance data, uploaded as fixed-length global arrays (no StructuredBuffer on WebGL2).
 // _FleshSphere : (worldCentre.xyz, worldRadius)
 // _FleshColor  : (surfaceColour.rgb, blendRadius)
+// _FleshTier   : merge tier, packed so equal tiers form one contiguous run
 //
-// The colour rides along in the same array as the blend radius to keep the upload to two vectors
-// per instance. Colour is uploaded already converted to the active colour space.
+// The colour rides along in the same array as the blend radius. Colour is uploaded already
+// converted to the active colour space. The tier id is what decides who may blend: the CPU
+// sorts instances so each tier is a single run, and the field smooth-unions inside a run
+// then hard-unions the runs together. A neck never forms between different tiers.
 //
 // The underlying form is always a sphere, so the field is analytic: no baked volume, no 3D
 // texture fetch, no rotation (a sphere is rotation invariant) and no voxel quantisation.
 // Layered detail such as eyes or ears is conventional geometry drawn on top, not part of this field.
 float4 _FleshSphere[MAX_FLESH_INSTANCES];
 float4 _FleshColor[MAX_FLESH_INSTANCES];
+float _FleshTier[MAX_FLESH_INSTANCES];
 
 // Cluster AABB in world space, used for the analytic ray entry/exit test.
 float4 _FleshBoundsMin;
@@ -52,10 +56,22 @@ float SmoothMin(float a, float b, float k)
     return SmoothMinWeighted(a, b, k, h);
 }
 
-/// Smooth union of every active instance. Exact everywhere, so sphere tracing takes full strides.
+/// Hard-union a finished same-tier group into the cross-tier field. Different tiers meet at a
+/// crease instead of growing a neck.
+void CommitTierGroup(inout float result, float groupDistance)
+{
+    result = min(result, groupDistance);
+}
+
+/// Smooth union inside each tier, then a hard union across tiers. Instances must arrive sorted
+/// by _FleshTier so each tier is one contiguous run. Exact everywhere, so sphere tracing
+/// takes full strides.
 float SceneSDF(float3 worldPos)
 {
     float result = FLESH_FAR_DISTANCE;
+    float groupDistance = FLESH_FAR_DISTANCE;
+    float groupTier = 0.0;
+    bool groupOpen = false;
 
     [loop]
     for (int i = 0; i < MAX_FLESH_INSTANCES; i++)
@@ -65,7 +81,21 @@ float SceneSDF(float3 worldPos)
             break;
         }
 
-        result = SmoothMin(result, SphereSDF(worldPos, i), _FleshColor[i].w);
+        float tier = _FleshTier[i];
+        if (groupOpen && tier != groupTier)
+        {
+            CommitTierGroup(result, groupDistance);
+            groupDistance = FLESH_FAR_DISTANCE;
+        }
+
+        groupOpen = true;
+        groupTier = tier;
+        groupDistance = SmoothMin(groupDistance, SphereSDF(worldPos, i), _FleshColor[i].w);
+    }
+
+    if (groupOpen)
+    {
+        CommitTierGroup(result, groupDistance);
     }
 
     return result;
@@ -80,9 +110,26 @@ float SceneSDF(float3 worldPos)
 /// of the operand gradients, and each sphere's gradient is an exact unit vector. This replaces the
 /// six-tap central difference, which cost six full scene evaluations and quantised to the voxel grid.
 ///
-/// Colour rides the same h weights, so a neck between two instances averages their tier colours over
-/// exactly the region where their distances blend. Instances far from worldPos drive h to 1, which
-/// keeps the accumulator untouched, so distant colours cannot leak across the pile.
+/// Colour rides the same h weights, so a neck between two instances of one tier averages their
+/// colours over exactly the region where their distances blend. A different tier contributes its
+/// own colour only where its hard-union surface is the closer one. Instances far from worldPos
+/// drive h to 1, which keeps that tier's accumulator untouched.
+void CommitTierGroupSurface(
+    inout float result,
+    inout float3 gradient,
+    inout float3 surfaceColor,
+    float groupDistance,
+    float3 groupGradient,
+    float3 groupColor)
+{
+    if (groupDistance < result)
+    {
+        result = groupDistance;
+        gradient = groupGradient;
+        surfaceColor = groupColor;
+    }
+}
+
 float SceneSDFWithSurface(float3 worldPos, out float3 gradient, out float3 surfaceColor, out int nearestInstance)
 {
     float result = FLESH_FAR_DISTANCE;
@@ -90,6 +137,12 @@ float SceneSDFWithSurface(float3 worldPos, out float3 gradient, out float3 surfa
     gradient = float3(0.0, 0.0, 0.0);
     surfaceColor = float3(0.0, 0.0, 0.0);
     nearestInstance = 0;
+
+    float groupDistance = FLESH_FAR_DISTANCE;
+    float3 groupGradient = float3(0.0, 0.0, 0.0);
+    float3 groupColor = float3(0.0, 0.0, 0.0);
+    float groupTier = 0.0;
+    bool groupOpen = false;
 
     [loop]
     for (int i = 0; i < MAX_FLESH_INSTANCES; i++)
@@ -99,6 +152,18 @@ float SceneSDFWithSurface(float3 worldPos, out float3 gradient, out float3 surfa
             break;
         }
 
+        float tier = _FleshTier[i];
+        if (groupOpen && tier != groupTier)
+        {
+            CommitTierGroupSurface(result, gradient, surfaceColor, groupDistance, groupGradient, groupColor);
+            groupDistance = FLESH_FAR_DISTANCE;
+            groupGradient = float3(0.0, 0.0, 0.0);
+            groupColor = float3(0.0, 0.0, 0.0);
+        }
+
+        groupOpen = true;
+        groupTier = tier;
+
         float4 sphere = _FleshSphere[i];
         float4 colorBlend = _FleshColor[i];
         float3 offset = worldPos - sphere.xyz;
@@ -106,18 +171,23 @@ float SceneSDFWithSurface(float3 worldPos, out float3 gradient, out float3 surfa
         float instanceDistance = offsetLength - sphere.w;
         float3 instanceGradient = offset / max(offsetLength, 1e-6);
 
-        // First iteration: result is FLESH_FAR_DISTANCE, so h resolves to 0 and the distance, the
-        // gradient and the colour are all taken wholly from this instance.
+        // First sphere of a tier: groupDistance is FLESH_FAR_DISTANCE, so h resolves to 0 and the
+        // distance, the gradient and the colour are all taken wholly from this instance.
         float h;
-        result = SmoothMinWeighted(result, instanceDistance, colorBlend.w, h);
-        gradient = lerp(instanceGradient, gradient, h);
-        surfaceColor = lerp(colorBlend.rgb, surfaceColor, h);
+        groupDistance = SmoothMinWeighted(groupDistance, instanceDistance, colorBlend.w, h);
+        groupGradient = lerp(instanceGradient, groupGradient, h);
+        groupColor = lerp(colorBlend.rgb, groupColor, h);
 
         if (instanceDistance < nearest)
         {
             nearest = instanceDistance;
             nearestInstance = i;
         }
+    }
+
+    if (groupOpen)
+    {
+        CommitTierGroupSurface(result, gradient, surfaceColor, groupDistance, groupGradient, groupColor);
     }
 
     return result;

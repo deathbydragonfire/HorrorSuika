@@ -174,12 +174,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FleshVisualComponent
   localRadius: 0.5
-  blendRadius: 0.18
+  blendRadius: 0.5
   blendRadiusRelativeToScale: 1
+  tierIndex: 0
   surfaceColor: {r: 0.72, g: 0.28, b: 0.28, a: 1}
   wetness: 0.5
   hideSourceRenderer: 1
-  pulseEnabled: 1
+  pulseEnabled: 0
   pulseAmplitude: 0.06
   pulseFrequency: 0.55
   pulseReferenceRadius: 0.5

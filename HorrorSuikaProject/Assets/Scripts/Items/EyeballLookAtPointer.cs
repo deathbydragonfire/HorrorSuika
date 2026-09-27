@@ -3,8 +3,9 @@ using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
 
 /// <summary>
-/// Turns the inner eyeball toward the mouse or touch pointer when it is nearby, keeping the iris
-/// inside a forward cone so it never rolls back into the head.
+/// Turns every eyeball on a host sphere toward the pointer while it is within a fixed distance of
+/// that sphere. The distance is an absolute world-space gap outside the surface and does not scale
+/// with the sphere. The iris stays inside a forward cone so it never rolls back into the head.
 /// </summary>
 [DisallowMultipleComponent]
 public class EyeballLookAtPointer : MonoBehaviour
@@ -21,7 +22,7 @@ public class EyeballLookAtPointer : MonoBehaviour
     [SerializeField, Tooltip("Iris direction in the eyeball's local space. The Human Eyeball mesh looks along -Y.")]
     private Vector3 localLookAxis = Vector3.down;
 
-    [SerializeField, Min(MinimumLookRadius), Tooltip("World-space radius around the eye. Outside this, the iris returns to rest.")]
+    [SerializeField, Min(MinimumLookRadius), Tooltip("Fixed world-space distance outside the host sphere. Every eye on that sphere looks together inside it and returns to rest beyond it. Sphere size does not scale this value.")]
     private float lookRadius = 0.525f;
 
     [SerializeField, Range(1f, 55f), Tooltip("Maximum degrees the iris may turn left or right from rest.")]
@@ -37,10 +38,10 @@ public class EyeballLookAtPointer : MonoBehaviour
     private float returnSpeed = 5f;
 
     private Quaternion restLocalRotation;
-
+    private MergeItem hostItem;
     private bool restCaptured;
 
-    /// <summary>World-space radius around the eye that attracts the iris.</summary>
+    /// <summary>Fixed world-space distance outside the host sphere that attracts every eye on it.</summary>
     public float LookRadius
     {
         get => lookRadius;
@@ -79,7 +80,7 @@ public class EyeballLookAtPointer : MonoBehaviour
         ApplyRestPose();
     }
 
-private void LateUpdate()
+    private void LateUpdate()
     {
         if (eyeball == null)
         {
@@ -94,14 +95,13 @@ private void LateUpdate()
 
         Quaternion targetLocal = restLocalRotation;
         float proximity = 0f;
-        if (TryGetPointerWorldPoint(cam, out Vector3 pointerWorld))
+        if (TryGetPointerAim(cam, out Vector3 aimPoint, out float distanceOutsideSphere))
         {
-            float distance = Vector3.Distance(pointerWorld, eyeball.position);
-            proximity = 1f - Mathf.Clamp01(distance / lookRadius);
+            proximity = 1f - Mathf.Clamp01(distanceOutsideSphere / lookRadius);
             proximity = Mathf.SmoothStep(0f, 1f, proximity);
             if (proximity > 0f)
             {
-                targetLocal = ComputeLookLocalRotation(cam, pointerWorld, proximity);
+                targetLocal = ComputeLookLocalRotation(cam, aimPoint, proximity);
             }
         }
 
@@ -110,7 +110,7 @@ private void LateUpdate()
         eyeball.localRotation = Quaternion.Slerp(eyeball.localRotation, targetLocal, t);
     }
 
-private Quaternion ComputeLookLocalRotation(Camera cam, Vector3 pointerWorld, float proximity)
+    private Quaternion ComputeLookLocalRotation(Camera cam, Vector3 pointerWorld, float proximity)
     {
         Quaternion restWorld = eyeball.parent != null
             ? eyeball.parent.rotation * restLocalRotation
@@ -136,7 +136,7 @@ private Quaternion ComputeLookLocalRotation(Camera cam, Vector3 pointerWorld, fl
         return Quaternion.Inverse(parent.rotation) * worldRotation;
     }
 
-private Vector3 ClampLookDirection(Vector3 restLook, Vector3 desired, Vector3 worldUp)
+    private Vector3 ClampLookDirection(Vector3 restLook, Vector3 desired, Vector3 worldUp)
     {
         Vector3 up = worldUp;
         if (up.sqrMagnitude < 0.0001f || Mathf.Abs(Vector3.Dot(restLook.normalized, up.normalized)) > 0.98f)
@@ -154,8 +154,38 @@ private Vector3 ClampLookDirection(Vector3 restLook, Vector3 desired, Vector3 wo
         return restOrient * (Quaternion.Euler(-pitch, yaw, 0f) * Vector3.forward);
     }
 
+    /// <summary>
+    /// Projects the pointer onto the host sphere. Distance is measured from the sphere surface so
+    /// every eye on that sphere shares one result. Without a host, distance is measured from this eye.
+    /// </summary>
+    private bool TryGetPointerAim(Camera cam, out Vector3 aimPoint, out float distanceOutsideSphere)
+    {
+        aimPoint = default;
+        distanceOutsideSphere = 0f;
 
-    private bool TryGetPointerWorldPoint(Camera cam, out Vector3 pointerWorld)
+        Vector3 sphereCenter = hostItem != null ? hostItem.transform.position : eyeball.position;
+        if (!TryGetPointerWorldPoint(cam, sphereCenter, out Vector3 pointerOnSphere))
+        {
+            return false;
+        }
+
+        float distance = Vector3.Distance(pointerOnSphere, sphereCenter);
+        if (hostItem != null)
+        {
+            distance -= hostItem.Radius;
+        }
+
+        distanceOutsideSphere = Mathf.Max(0f, distance);
+
+        if (!TryGetPointerWorldPoint(cam, eyeball.position, out aimPoint))
+        {
+            aimPoint = pointerOnSphere;
+        }
+
+        return true;
+    }
+
+    private bool TryGetPointerWorldPoint(Camera cam, Vector3 planeAnchor, out Vector3 pointerWorld)
     {
         pointerWorld = default;
         if (!TryReadPointerScreenPosition(out Vector2 screen))
@@ -170,7 +200,7 @@ private Vector3 ClampLookDirection(Vector3 restLook, Vector3 desired, Vector3 wo
             return false;
         }
 
-        var plane = new Plane(planeNormal, eyeball.position);
+        var plane = new Plane(planeNormal, planeAnchor);
         if (!plane.Raycast(ray, out float enter))
         {
             return false;
@@ -217,6 +247,8 @@ private Vector3 ClampLookDirection(Vector3 restLook, Vector3 desired, Vector3 wo
         {
             localLookAxis = Vector3.down;
         }
+
+        hostItem = GetComponentInParent<MergeItem>();
     }
 
     private Transform FindInnerGlobe()

@@ -24,7 +24,7 @@ MonoBehaviour:
     requiredCount: 2
     descriptionOverride: 
   initialSpawnableTierCount: 2
-  maxSpawnableTierCount: 5
+  maxSpawnableTierCount: 7
   dropLimit: 0
   timeLimitSeconds: 0
   randomSeed: 0

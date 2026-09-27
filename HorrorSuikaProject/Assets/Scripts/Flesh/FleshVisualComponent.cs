@@ -23,11 +23,14 @@ public class FleshVisualComponent : MonoBehaviour
     [SerializeField, Tooltip("Radius in local space, multiplied by the transform's uniform scale to get the world radius. 0.5 matches Unity's primitive sphere, whose diameter equals the scale.")]
     private float localRadius = 0.5f;
 
-    [SerializeField, Tooltip("World-space smooth-union radius used when merging with neighbouring flesh.")]
-    private float blendRadius = 0.15f;
+    [SerializeField, Tooltip("World-space smooth-union radius used when merging with neighbouring flesh of the same tier. Larger values grow a longer neck.")]
+    private float blendRadius = 0.8f;
 
     [SerializeField, Tooltip("Treat Blend Radius as a fraction of this object's uniform scale instead of an absolute world distance. Use this when instance sizes vary widely.")]
     private bool blendRadiusRelativeToScale;
+
+    [SerializeField, Tooltip("Merge tier. Metaball necks form only between instances that share this value. Driven from the tier at runtime.")]
+    private int tierIndex;
 
     [SerializeField, Tooltip("Surface colour of this instance. Merged necks average the colours of the instances that form them. Driven from the tier at runtime.")]
     private Color surfaceColor = new Color(0.72f, 0.28f, 0.28f, 1f);
@@ -85,7 +88,17 @@ public class FleshVisualComponent : MonoBehaviour
         set => blendRadius = Mathf.Max(value, MinimumBlendRadius);
     }
 
-    /// <summary>Surface colour of this instance, averaged with neighbours across a merged neck.</summary>
+    /// <summary>
+    /// Merge tier shared with the spheres this instance is allowed to metaball with.
+    /// Different tiers stay separate and meet at a hard surface.
+    /// </summary>
+    public int TierIndex
+    {
+        get => tierIndex;
+        set => tierIndex = value;
+    }
+
+    /// <summary>Surface colour of this instance, averaged with same-tier neighbours across a merged neck.</summary>
     public Color SurfaceColor
     {
         get => surfaceColor;

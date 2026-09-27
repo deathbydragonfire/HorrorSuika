@@ -42,6 +42,7 @@ public class MergeItemDecorations : MonoBehaviour
     private const int SeparationIterations = 18;
     private const int ScatterAttemptsPerInstance = 48;
     private const float MinimumFacingDot = 0.55f;
+    private const float AnchorClearanceFacingDot = -0.15f;
     private const float SeparationPadding = 1.3f;
 
     private readonly List<List<GameObject>> pools = new List<List<GameObject>>(8);
@@ -49,6 +50,7 @@ public class MergeItemDecorations : MonoBehaviour
     private readonly List<int> pendingDefinitionIndices = new List<int>(16);
     private readonly List<Vector3> pendingDirections = new List<Vector3>(16);
     private readonly List<float> pendingRadii = new List<float>(16);
+    private readonly List<bool> pendingAnchored = new List<bool>(16);
 
     private Transform decorationRoot;
     private MergeItem mergeItem;
@@ -71,8 +73,7 @@ public class MergeItemDecorations : MonoBehaviour
     }
 
     /// <summary>
-    /// Rolls drop chances for each authored decoration. Merges still inherit whatever both parents
-    /// already had instead of rolling again.
+    /// Rolls drop chances for each authored decoration on a newly dropped blob.
     /// </summary>
     public void PopulateForNewSpawn(MergeItemTierTable table, int tierIndex)
     {
@@ -85,9 +86,7 @@ public class MergeItemDecorations : MonoBehaviour
 
         IReadOnlyList<MergeItemDecorationDefinition> definitions = table.Decorations;
         Vector3 facing = ResolveFacingLocal();
-        pendingDefinitionIndices.Clear();
-        pendingDirections.Clear();
-        pendingRadii.Clear();
+        ClearPending();
 
         for (int i = 0; i < definitions.Count; i++)
         {
@@ -102,9 +101,7 @@ public class MergeItemDecorations : MonoBehaviour
                 continue;
             }
 
-            pendingDefinitionIndices.Add(i);
-            pendingDirections.Add(facing);
-            pendingRadii.Add(definition.WorldRadius);
+            AddPending(i, facing, definition);
         }
 
         if (pendingDefinitionIndices.Count == 0)
@@ -112,8 +109,7 @@ public class MergeItemDecorations : MonoBehaviour
             return;
         }
 
-        ScatterOrganic(pendingDirections, pendingRadii, facing);
-        RelaxDirections(pendingDirections, pendingRadii, facing);
+        FinalizePlacement(facing);
         ApplyPending();
     }
 
@@ -140,7 +136,7 @@ public class MergeItemDecorations : MonoBehaviour
         return new MergeItemDecorationLayout(placements);
     }
 
-    /// <summary>Rebuilds this item's decorations from both merge parents.</summary>
+    /// <summary>Rebuilds this item's decorations from both merge parents. Does not roll new ones.</summary>
     public void ApplyInherited(MergeItemTierTable table, MergeItemDecorationLayout first, MergeItemDecorationLayout second)
     {
         tierTable = table;
@@ -150,9 +146,7 @@ public class MergeItemDecorations : MonoBehaviour
             return;
         }
 
-        pendingDefinitionIndices.Clear();
-        pendingDirections.Clear();
-        pendingRadii.Clear();
+        ClearPending();
         AppendLayout(first);
         AppendLayout(second);
         if (pendingDefinitionIndices.Count == 0)
@@ -160,9 +154,7 @@ public class MergeItemDecorations : MonoBehaviour
             return;
         }
 
-        Vector3 facing = ResolveFacingLocal();
-        ScatterOrganic(pendingDirections, pendingRadii, facing);
-        RelaxDirections(pendingDirections, pendingRadii, facing);
+        FinalizePlacement(ResolveFacingLocal());
         ApplyPending();
     }
 
@@ -206,16 +198,54 @@ public class MergeItemDecorations : MonoBehaviour
                 continue;
             }
 
+            if (definition.SingleInstance && HasPendingDefinition(placement.DefinitionIndex))
+            {
+                continue;
+            }
+
             Vector3 local = transform.InverseTransformDirection(placement.WorldDirection);
             if (local.sqrMagnitude < 0.0001f)
             {
                 local = ResolveFacingLocal();
             }
 
-            pendingDefinitionIndices.Add(placement.DefinitionIndex);
-            pendingDirections.Add(local.normalized);
-            pendingRadii.Add(definition.WorldRadius);
+            AddPending(placement.DefinitionIndex, local.normalized, definition);
         }
+    }
+
+    private void FinalizePlacement(Vector3 facing)
+    {
+        ScatterOrganic(pendingDirections, pendingRadii, pendingAnchored, facing);
+        RelaxDirections(pendingDirections, pendingRadii, pendingAnchored, facing);
+    }
+
+    private void ClearPending()
+    {
+        pendingDefinitionIndices.Clear();
+        pendingDirections.Clear();
+        pendingRadii.Clear();
+        pendingAnchored.Clear();
+    }
+
+    private void AddPending(int definitionIndex, Vector3 direction, MergeItemDecorationDefinition definition)
+    {
+        pendingDefinitionIndices.Add(definitionIndex);
+        pendingDirections.Add(direction);
+        pendingRadii.Add(definition.WorldRadius);
+        pendingAnchored.Add(definition.AnchorToCenter);
+    }
+
+    private bool HasPendingDefinition(int definitionIndex)
+    {
+        for (int i = 0; i < pendingDefinitionIndices.Count; i++)
+        {
+            if (pendingDefinitionIndices[i] == definitionIndex)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void ApplyPending()
@@ -292,14 +322,22 @@ public class MergeItemDecorations : MonoBehaviour
             return;
         }
 
-        SkinnedMeshRenderer[] eyelids = decoration.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-        for (int i = 0; i < eyelids.Length; i++)
+        SkinnedMeshRenderer[] skinned = decoration.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        for (int i = 0; i < skinned.Length; i++)
         {
-            eyelids[i].sharedMaterial = hostMaterial;
+            Material[] materials = skinned[i].sharedMaterials;
+            if (materials == null || materials.Length == 0)
+            {
+                continue;
+            }
+
+            // Slot 0 is the flesh-matching surface. Extra slots, such as lips and teeth, stay authored.
+            materials[0] = hostMaterial;
+            skinned[i].sharedMaterials = materials;
         }
     }
 
-    private void RelaxDirections(List<Vector3> directions, List<float> radii, Vector3 facing)
+    private void RelaxDirections(List<Vector3> directions, List<float> radii, List<bool> anchored, Vector3 facing)
     {
         if (directions.Count < 2)
         {
@@ -307,12 +345,20 @@ public class MergeItemDecorations : MonoBehaviour
         }
 
         float itemRadius = mergeItem != null ? Mathf.Max(mergeItem.Radius, 0.01f) : 0.2f;
+        bool clearAnchor = CountUnanchored(anchored, directions.Count) < directions.Count;
         for (int iter = 0; iter < SeparationIterations; iter++)
         {
             for (int i = 0; i < directions.Count; i++)
             {
                 for (int j = i + 1; j < directions.Count; j++)
                 {
+                    bool anchorA = IsAnchored(anchored, i);
+                    bool anchorB = IsAnchored(anchored, j);
+                    if (anchorA && anchorB)
+                    {
+                        continue;
+                    }
+
                     float minDot = ComputeMinimumSeparationDot(itemRadius, radii[i] + radii[j]);
                     Vector3 a = directions[i];
                     Vector3 b = directions[j];
@@ -330,16 +376,38 @@ public class MergeItemDecorations : MonoBehaviour
 
                     push.Normalize();
                     float strength = (pairDot - minDot) * 0.55f + 0.08f;
-                    directions[i] = ClampToFacingCap((a + push * strength).normalized, facing);
-                    directions[j] = ClampToFacingCap((b - push * strength).normalized, facing);
+                    float capDot = clearAnchor ? AnchorClearanceFacingDot : MinimumFacingDot;
+                    if (!anchorA)
+                    {
+                        directions[i] = ClampToFacingCap((a + push * strength).normalized, facing, capDot);
+                    }
+
+                    if (!anchorB)
+                    {
+                        directions[j] = ClampToFacingCap((b - push * strength).normalized, facing, capDot);
+                    }
                 }
             }
         }
     }
 
-    private void ScatterOrganic(List<Vector3> directions, List<float> radii, Vector3 facing)
+    private void ScatterOrganic(List<Vector3> directions, List<float> radii, List<bool> anchored, Vector3 facing)
     {
         if (directions.Count == 0)
+        {
+            return;
+        }
+
+        Vector3 center = facing.sqrMagnitude > 0.0001f ? facing.normalized : Vector3.back;
+        for (int i = 0; i < directions.Count; i++)
+        {
+            if (IsAnchored(anchored, i))
+            {
+                directions[i] = center;
+            }
+        }
+
+        if (CountUnanchored(anchored, directions.Count) == 0)
         {
             return;
         }
@@ -350,19 +418,33 @@ public class MergeItemDecorations : MonoBehaviour
             return;
         }
 
+        bool hasAnchor = CountUnanchored(anchored, directions.Count) < directions.Count;
+        float sampleMinDot = hasAnchor ? AnchorClearanceFacingDot : MinimumFacingDot;
         float itemRadius = mergeItem != null ? Mathf.Max(mergeItem.Radius, 0.01f) : 0.2f;
         for (int i = 0; i < directions.Count; i++)
         {
-            Vector3 best = SampleFacingCap(facing);
+            if (IsAnchored(anchored, i))
+            {
+                continue;
+            }
+
+            Vector3 best = SampleFacingCap(facing, sampleMinDot);
             float bestNearestDot = 2f;
+            float bestFacingDot = -2f;
+            bool foundSeparated = false;
 
             for (int attempt = 0; attempt < ScatterAttemptsPerInstance; attempt++)
             {
-                Vector3 candidate = SampleFacingCap(facing);
+                Vector3 candidate = SampleFacingCap(facing, sampleMinDot);
                 float nearestDot = -1f;
                 bool separated = true;
-                for (int p = 0; p < i; p++)
+                for (int p = 0; p < directions.Count; p++)
                 {
+                    if (p == i || (!IsAnchored(anchored, p) && p > i))
+                    {
+                        continue;
+                    }
+
                     float pairDot = Vector3.Dot(candidate, directions[p]);
                     nearestDot = Mathf.Max(nearestDot, pairDot);
                     float minDot = ComputeMinimumSeparationDot(itemRadius, radii[i] + radii[p]);
@@ -374,11 +456,18 @@ public class MergeItemDecorations : MonoBehaviour
 
                 if (separated)
                 {
-                    best = candidate;
-                    break;
+                    float facingDot = Vector3.Dot(candidate, center);
+                    if (!foundSeparated || facingDot > bestFacingDot)
+                    {
+                        foundSeparated = true;
+                        bestFacingDot = facingDot;
+                        best = candidate;
+                    }
+
+                    continue;
                 }
 
-                if (nearestDot < bestNearestDot)
+                if (!foundSeparated && nearestDot < bestNearestDot)
                 {
                     bestNearestDot = nearestDot;
                     best = candidate;
@@ -389,9 +478,28 @@ public class MergeItemDecorations : MonoBehaviour
         }
     }
 
-    private static Vector3 SampleFacingCap(Vector3 facing)
+    private static bool IsAnchored(List<bool> anchored, int index)
     {
-        float z = Mathf.Lerp(MinimumFacingDot, 1f, Random.value);
+        return anchored != null && index >= 0 && index < anchored.Count && anchored[index];
+    }
+
+    private static int CountUnanchored(List<bool> anchored, int count)
+    {
+        int unanchored = 0;
+        for (int i = 0; i < count; i++)
+        {
+            if (!IsAnchored(anchored, i))
+            {
+                unanchored++;
+            }
+        }
+
+        return unanchored;
+    }
+
+    private static Vector3 SampleFacingCap(Vector3 facing, float minimumDot)
+    {
+        float z = Mathf.Lerp(minimumDot, 1f, Random.value);
         float azimuth = Random.Range(0f, Mathf.PI * 2f);
         float radial = Mathf.Sqrt(Mathf.Max(0f, 1f - (z * z)));
         Vector3 inFacingSpace = new Vector3(radial * Mathf.Cos(azimuth), radial * Mathf.Sin(azimuth), z);
@@ -416,9 +524,14 @@ public class MergeItemDecorations : MonoBehaviour
 
     private static Vector3 ClampToFacingCap(Vector3 direction, Vector3 facing)
     {
+        return ClampToFacingCap(direction, facing, MinimumFacingDot);
+    }
+
+    private static Vector3 ClampToFacingCap(Vector3 direction, Vector3 facing, float minimumDot)
+    {
         Vector3 dir = direction.sqrMagnitude > 0.0001f ? direction.normalized : facing;
         float facingDot = Vector3.Dot(dir, facing);
-        if (facingDot >= MinimumFacingDot)
+        if (facingDot >= minimumDot)
         {
             return dir;
         }
@@ -429,8 +542,8 @@ public class MergeItemDecorations : MonoBehaviour
             return facing;
         }
 
-        float rim = Mathf.Sqrt(Mathf.Max(0f, 1f - (MinimumFacingDot * MinimumFacingDot)));
-        return ((projected.normalized * rim) + (facing * MinimumFacingDot)).normalized;
+        float rim = Mathf.Sqrt(Mathf.Max(0f, 1f - (minimumDot * minimumDot)));
+        return ((projected.normalized * rim) + (facing * minimumDot)).normalized;
     }
 
     private static float ComputeMinimumSeparationDot(float itemRadius, float combinedRadii)
