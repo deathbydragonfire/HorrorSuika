@@ -16,6 +16,7 @@ GameObject:
   - component: {fileID: 2362492652731379004}
   - component: {fileID: 6336975796360244476}
   - component: {fileID: 3332642697048087914}
+  - component: {fileID: 3989590483780191815}
   m_Layer: 0
   m_Name: MergeItem
   m_TagString: Untagged
@@ -161,6 +162,7 @@ MonoBehaviour:
   meshRenderer: {fileID: 5915683462329613003}
   fleshVisual: {fileID: 6336975796360244476}
   decorations: {fileID: 3332642697048087914}
+  hair: {fileID: 3989590483780191815}
 --- !u!114 &6336975796360244476
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -199,3 +201,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 887832cfba5a5d048be957f3f4f0e796, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MergeItemDecorations
+--- !u!114 &3989590483780191815
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4857933282590782364}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ec302d2acc987924d876a07416fdc2d3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MergeItemHair
+  hairMaterial: {fileID: 2100000, guid: b92012960f222a844b74cce939efd64b, type: 2}
+  hairiness: 0

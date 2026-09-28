@@ -9,7 +9,7 @@ using UnityEngine;
 public class LevelAuthor : MonoBehaviour
 {
     [Header("Level")]
-    [Tooltip("The level asset being edited. Create one from the inspector or assign an existing asset.")]
+    [Tooltip("The level asset being edited. The inspector switches levels and saves or loads this asset's curve and goals.")]
     [SerializeField] private LevelDefinition level;
 
     [Tooltip("Sequence this level can be added to or removed from.")]

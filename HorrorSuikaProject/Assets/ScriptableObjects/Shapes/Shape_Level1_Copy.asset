@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 33adfbe689545c74a9254dab54f8d976, type: 3}
+  m_Name: Shape_Level1_Copy
+  m_EditorClassIdentifier: Assembly-CSharp::PlayfieldShapeDefinition
+  outlinePoints:
+  - {x: -3.2742167, y: 10.190678}
+  - {x: -3.6360474, y: 5.387945}
+  - {x: -1.8012259, y: 5.3373938}
+  - {x: -0.4863761, y: 6.413423}
+  - {x: 0.63071, y: 6.434901}
+  - {x: 2.0331686, y: 5.3194304}
+  - {x: 2.8232007, y: 5.323396}
+  - {x: 3.4924946, y: 5.355746}
+  - {x: 3.0075135, y: 10.363256}
+  subdivisionsPerSegment: 0
+  maxSegmentLength: 0.25
+  wallThickness: 0.25
+  extrudeDepth: 1
+  deathLineY: 9.307826
+  dropY: 9.907572

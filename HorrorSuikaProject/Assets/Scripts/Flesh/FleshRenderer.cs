@@ -133,6 +133,12 @@ public class FleshRenderer : MonoBehaviour
         set => surfaceEpsilon = Mathf.Max(value, 1e-5f);
     }
 
+    /// <summary>
+    /// Shared pulse clock in seconds. Visual layers that stick to the breathing surface, such as hair,
+    /// sample this after the renderer advances it each frame.
+    /// </summary>
+    public static float SharedPulseTime { get; private set; }
+
     /// <summary>Fragment output selector.</summary>
     public FleshDebugMode DebugMode
     {
@@ -423,12 +429,14 @@ public class FleshRenderer : MonoBehaviour
         {
             hasPulseSampleTime = true;
             lastPulseSampleTime = now;
+            SharedPulseTime = pulseTime;
             return;
         }
 
         float delta = Mathf.Clamp(now - lastPulseSampleTime, 0f, MaxPulseDeltaSeconds);
         lastPulseSampleTime = now;
         pulseTime += delta * Mathf.Max(pulseTimeScale, 0f);
+        SharedPulseTime = pulseTime;
     }
 
     private void UpdateProxy(Vector3 clusterMin, Vector3 clusterMax)

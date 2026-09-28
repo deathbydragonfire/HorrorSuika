@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Loses the game when a settled item stays above the death line past a grace period.
+/// Loses the game when a sphere stays touching the death line, or above it, for five seconds.
+/// The count starts the moment a sphere touches the line.
 /// </summary>
 public class GameOverWatcher : MonoBehaviour
 {
-    private const float GraceSeconds = 2f;
-    private const float GraceDecayMultiplier = 2f;
+    private const float GraceSeconds = 5f;
 
     private PlayfieldBounds bounds;
     private MergeItemPool itemPool;
@@ -50,13 +50,13 @@ public class GameOverWatcher : MonoBehaviour
             return;
         }
 
-        if (HasViolatingItem())
+        if (HasSphereOnOrAboveLine())
         {
             graceTimer += Time.fixedDeltaTime;
         }
         else
         {
-            graceTimer = Mathf.Max(0f, graceTimer - (Time.fixedDeltaTime * GraceDecayMultiplier));
+            graceTimer = 0f;
         }
 
         if (graceTimer < GraceSeconds)
@@ -69,7 +69,7 @@ public class GameOverWatcher : MonoBehaviour
         GameOverTriggered?.Invoke();
     }
 
-    private bool HasViolatingItem()
+    private bool HasSphereOnOrAboveLine()
     {
         IReadOnlyList<MergeItem> items = itemPool.ActiveItems;
         MergeItem held = itemDropper != null ? itemDropper.HeldItem : null;
@@ -78,12 +78,12 @@ public class GameOverWatcher : MonoBehaviour
         for (int i = 0; i < items.Count; i++)
         {
             MergeItem item = items[i];
-            if (item == null || item == held || item.IsConsumed || item.IsSettling)
+            if (item == null || item == held || item.IsConsumed)
             {
                 continue;
             }
 
-            if (item.transform.position.y - item.Radius > deathLineY)
+            if (item.transform.position.y + item.Radius >= deathLineY)
             {
                 return true;
             }

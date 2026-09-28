@@ -13,18 +13,18 @@ MonoBehaviour:
   m_Name: Shape_Level1
   m_EditorClassIdentifier: Assembly-CSharp::PlayfieldShapeDefinition
   outlinePoints:
-  - {x: -4.5416026, y: 7.354115}
-  - {x: -3.5984468, y: 5.4256907}
-  - {x: -3.4989858, y: 3.4133377}
-  - {x: -2.75, y: 0}
-  - {x: -0.010610461, y: 1.2663975}
-  - {x: 2.75, y: 0}
-  - {x: 3.7664008, y: 2.795714}
-  - {x: 3.4925373, y: 5.846207}
-  - {x: 4.123713, y: 7.451276}
+  - {x: -3.2742167, y: 10.190678}
+  - {x: -3.6360474, y: 5.387945}
+  - {x: -1.8012259, y: 5.3373938}
+  - {x: -0.37321648, y: 5.3194304}
+  - {x: 0.8193654, y: 5.3031507}
+  - {x: 2.0331686, y: 5.3194304}
+  - {x: 2.8232007, y: 5.323396}
+  - {x: 3.4924946, y: 5.355746}
+  - {x: 3.0075135, y: 10.363256}
   subdivisionsPerSegment: 0
   maxSegmentLength: 0.25
   wallThickness: 0.25
   extrudeDepth: 1
-  deathLineY: 6
-  dropY: 7
+  deathLineY: 9.307826
+  dropY: 9.907572

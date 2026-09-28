@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 /// <summary>
 /// Shared scene-view and validation UI for playfield curve authoring. Used by both the shape-only
@@ -220,8 +221,8 @@ public static class PlayfieldShapeAuthoringGui
         DrawPolyline(inner, InnerOutlineColor);
         DrawPolyline(outer, OuterOutlineColor);
 
-        DrawSpanLine(inner, definition.DeathLineY, DeathLineColor, "Death");
-        DrawSpanLine(inner, definition.DropY, DropLineColor, "Drop");
+        DrawHeightLine(definition, inner, definition.DeathLineY, DeathLineColor, "Death", 0.35f, definition.SetDeathLineY, "Move Death Line", true);
+        DrawHeightLine(definition, inner, definition.DropY, DropLineColor, "Spawn", 0.65f, definition.SetDropY, "Move Spawn Line", false);
 
         float largestRadius = GetLargestTierRadius(tierTable);
         if (largestRadius > 0f && TryFindNarrowestNeck(inner, largestRadius * 2f, out float neckWidth, out float neckY))
@@ -252,16 +253,92 @@ public static class PlayfieldShapeAuthoringGui
         }
     }
 
-    private static void DrawSpanLine(Vector2[] inner, float y, Color color, string label)
+    private static void DrawHeightLine(
+        PlayfieldShapeDefinition definition,
+        Vector2[] inner,
+        float y,
+        Color color,
+        string label,
+        float handleAlongSpan,
+        System.Action<float> apply,
+        string undoName,
+        bool presentDeathLine)
     {
-        if (!TryMeasureSpan(inner, y, out float minX, out float maxX))
+        GetAuthoringSpan(inner, y, out float minX, out float maxX);
+
+        const float halfThickness = 0.045f;
+        const float lineZ = 0.45f;
+        var verts = new Vector3[]
+        {
+            new Vector3(minX, y - halfThickness, lineZ),
+            new Vector3(maxX, y - halfThickness, lineZ),
+            new Vector3(maxX, y + halfThickness, lineZ),
+            new Vector3(minX, y + halfThickness, lineZ)
+        };
+
+        Color face = color;
+        face.a = 0.85f;
+        CompareFunction previousZTest = Handles.zTest;
+        Handles.zTest = CompareFunction.Always;
+        Handles.DrawSolidRectangleWithOutline(verts, face, color);
+        Handles.Label(new Vector3(maxX + LabelOffset, y, lineZ), $"{label} {y:0.##}");
+        Handles.zTest = previousZTest;
+
+        if (presentDeathLine && !Application.isPlaying)
+        {
+            PlayfieldBounds bounds = Object.FindFirstObjectByType<PlayfieldBounds>();
+            if (bounds != null)
+            {
+                bounds.PlaceDeathLine(y, minX, maxX);
+            }
+        }
+
+        Vector3 handle = new Vector3(Mathf.Lerp(minX, maxX, handleAlongSpan), y, lineZ);
+        float size = HandleUtility.GetHandleSize(handle) * HandleSizeFactor * 2f;
+        EditorGUI.BeginChangeCheck();
+        Vector3 moved = Handles.Slider(handle, Vector3.up, size, Handles.SphereHandleCap, 0f);
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(definition, undoName);
+            apply(moved.y);
+            EditorUtility.SetDirty(definition);
+        }
+    }
+
+    /// <summary>
+    /// Span the line is drawn across. Uses the interior crossings at this height. Above the rim or
+    /// below the floor, uses the opening at the nearest height that still has walls.
+    /// </summary>
+    private static void GetAuthoringSpan(Vector2[] outline, float y, out float minX, out float maxX)
+    {
+        if (TryMeasureSpan(outline, y, out minX, out maxX))
         {
             return;
         }
 
-        Handles.color = color;
-        Handles.DrawLine(new Vector3(minX, y, 0f), new Vector3(maxX, y, 0f));
-        Handles.Label(new Vector3(maxX + LabelOffset, y, 0f), $"{label} {y:0.##}");
+        minX = -2f;
+        maxX = 2f;
+        if (outline == null || outline.Length == 0)
+        {
+            return;
+        }
+
+        float minY = outline[0].y;
+        float maxY = outline[0].y;
+        for (int i = 1; i < outline.Length; i++)
+        {
+            minY = Mathf.Min(minY, outline[i].y);
+            maxY = Mathf.Max(maxY, outline[i].y);
+        }
+
+        const float edgeInset = 0.001f;
+        if (maxY - minY <= edgeInset * 2f)
+        {
+            return;
+        }
+
+        float sampleY = Mathf.Clamp(y, minY + edgeInset, maxY - edgeInset);
+        TryMeasureSpan(outline, sampleY, out minX, out maxX);
     }
 
     private static void DrawCircle(Vector3 center, float radius)

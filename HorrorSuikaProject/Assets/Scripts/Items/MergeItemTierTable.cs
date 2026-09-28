@@ -20,6 +20,19 @@ public class MergeItemTierTable : ScriptableObject
     [SerializeField, Tooltip("Prefabs that can appear on dropped blobs. Each entry has its own drop chance, tier filter, and merge inheritance.")]
     private List<MergeItemDecorationDefinition> decorations = new List<MergeItemDecorationDefinition>();
 
+    [Header("Hair")]
+    [SerializeField, Range(0f, 1f), Tooltip("Chance a newly dropped blob grows a sparse hair coat. Merges do not roll again; they average the parents, and any merge that is not bare plus bare is raised to at least the minimum.")]
+    private float hairChance = 0.4f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Lowest hairiness rolled when a new blob grows hair. A successful roll lands between this and the max. A failed chance stays bare.")]
+    private float minRolledHairiness = 0.75f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Highest hairiness rolled when a new blob grows hair.")]
+    private float maxRolledHairiness = 1f;
+
+    [SerializeField, Range(0f, 1f), Tooltip("Floor for merges. Two bare parents stay bare. Any other merge is raised to at least this percent, so hairy stays hairy.")]
+    private float minimumHairiness = 0.2f;
+
     [Header("Pulse")]
     [SerializeField, Tooltip("Cosmetic breathing applied to every flesh blob. Does not affect colliders or merge radii.")]
     private FleshPulseSettings pulse = new FleshPulseSettings();
@@ -44,6 +57,18 @@ public class MergeItemTierTable : ScriptableObject
 
     /// <summary>Global decoration prefabs that can appear on blobs, independent of any one tier's look.</summary>
     public IReadOnlyList<MergeItemDecorationDefinition> Decorations => decorations;
+
+    /// <summary>Chance a newly dropped blob grows hair. Merges average the parents instead of rolling.</summary>
+    public float HairChance => hairChance;
+
+    /// <summary>Lowest hairiness rolled when a new blob grows hair.</summary>
+    public float MinRolledHairiness => minRolledHairiness;
+
+    /// <summary>Highest hairiness rolled when a new blob grows hair.</summary>
+    public float MaxRolledHairiness => maxRolledHairiness;
+
+    /// <summary>Floor for a merge that includes any hair. Two bare parents stay bare.</summary>
+    public float MinimumHairiness => minimumHairiness;
 
     /// <summary>Cosmetic pulse applied to every flesh blob on this table.</summary>
     public FleshPulseSettings Pulse => pulse;
@@ -90,6 +115,10 @@ public class MergeItemTierTable : ScriptableObject
 
         initialSpawnableTierCount = Mathf.Max(1, initialSpawnableTierCount);
         topTierPopScore = Mathf.Max(0, topTierPopScore);
+        hairChance = Mathf.Clamp01(hairChance);
+        minimumHairiness = Mathf.Clamp(minimumHairiness, 0f, 1f);
+        minRolledHairiness = Mathf.Clamp(minRolledHairiness, minimumHairiness, 1f);
+        maxRolledHairiness = Mathf.Clamp(maxRolledHairiness, minRolledHairiness, 1f);
 
         for (int i = 0; i < tiers.Count; i++)
         {

@@ -21,6 +21,9 @@ public class PlayfieldBounds : MonoBehaviour
     [Tooltip("Fallback world Y the held item hovers at.")]
     [SerializeField] private float dropY = 7f;
 
+    [Tooltip("Red bar shown at the death line. Its width is the interior opening at that height.")]
+    [SerializeField] private Transform deathLineVisual;
+
     private PlayfieldShape shape;
 
     /// <summary>The installed baked shape, or null when running on the serialized fallback rectangle.</summary>
@@ -46,6 +49,58 @@ public class PlayfieldBounds : MonoBehaviour
         {
             shape.RefreshWorldOutline();
         }
+
+        RefreshDeathLineVisual();
+    }
+
+    /// <summary>
+    /// Places the red death-line bar at <paramref name="y"/> and stretches it from <paramref name="minX"/>
+    /// to <paramref name="maxX"/>, the interior opening between the walls.
+    /// </summary>
+    public void PlaceDeathLine(float y, float minX, float maxX)
+    {
+        if (deathLineVisual == null)
+        {
+            return;
+        }
+
+        float width = Mathf.Max(0.02f, maxX - minX);
+        float centerX = (minX + maxX) * 0.5f;
+        Transform parent = deathLineVisual.parent;
+        float parentScaleX = parent != null ? Mathf.Abs(parent.lossyScale.x) : 1f;
+        if (parentScaleX < 0.0001f)
+        {
+            parentScaleX = 1f;
+        }
+
+        float localWidth = width / parentScaleX;
+        Vector3 position = deathLineVisual.position;
+        Vector3 scale = deathLineVisual.localScale;
+        if (Mathf.Approximately(position.x, centerX)
+            && Mathf.Approximately(position.y, y)
+            && Mathf.Approximately(scale.x, localWidth))
+        {
+            return;
+        }
+
+        position.x = centerX;
+        position.y = y;
+        deathLineVisual.position = position;
+        scale.x = localWidth;
+        deathLineVisual.localScale = scale;
+    }
+
+    /// <summary>Resizes the red bar from the installed shape, or the fallback rectangle when none is installed.</summary>
+    public void RefreshDeathLineVisual()
+    {
+        float y = DeathLineY;
+        if (shape != null && shape.TryGetInteriorSpanAtY(y, out float minX, out float maxX))
+        {
+            PlaceDeathLine(y, minX, maxX);
+            return;
+        }
+
+        PlaceDeathLine(y, -innerWidth * 0.5f, innerWidth * 0.5f);
     }
 
     /// <summary>Clamps a requested drop X so an item of the given radius stays fully inside the walls.</summary>
@@ -66,22 +121,59 @@ public class PlayfieldBounds : MonoBehaviour
         return new Vector3(x, DropY, 0f);
     }
 
+    private void OnEnable()
+    {
+        if (shape == null)
+        {
+            PlayfieldShape installed = GetComponentInChildren<PlayfieldShape>(true);
+            if (installed != null)
+            {
+                shape = installed;
+                shape.RefreshWorldOutline();
+            }
+        }
+
+        RefreshDeathLineVisual();
+    }
+
     private void OnDrawGizmos()
     {
-        float halfWidth = InnerHalfWidth;
+        if (shape == null)
+        {
+            return;
+        }
+
         float floor = FloorY;
-        float death = DeathLineY;
         float drop = DropY;
 
-        Gizmos.color = Color.cyan;
-        Gizmos.DrawLine(new Vector3(-halfWidth, floor, 0f), new Vector3(halfWidth, floor, 0f));
-        Gizmos.DrawLine(new Vector3(-halfWidth, floor, 0f), new Vector3(-halfWidth, drop, 0f));
-        Gizmos.DrawLine(new Vector3(halfWidth, floor, 0f), new Vector3(halfWidth, drop, 0f));
+        if (TryGetSpan(floor, out float floorMin, out float floorMax))
+        {
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawLine(new Vector3(floorMin, floor, 0f), new Vector3(floorMax, floor, 0f));
+        }
 
-        Gizmos.color = Color.red;
-        Gizmos.DrawLine(new Vector3(-halfWidth, death, 0f), new Vector3(halfWidth, death, 0f));
+        if (deathLineVisual == null && TryGetSpan(DeathLineY, out float deathMin, out float deathMax))
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(new Vector3(deathMin, DeathLineY, 0f), new Vector3(deathMax, DeathLineY, 0f));
+        }
 
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawLine(new Vector3(-halfWidth, drop, 0f), new Vector3(halfWidth, drop, 0f));
+        if (TryGetSpan(drop, out float dropMin, out float dropMax))
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawLine(new Vector3(dropMin, drop, 0f), new Vector3(dropMax, drop, 0f));
+        }
+    }
+
+    private bool TryGetSpan(float y, out float minX, out float maxX)
+    {
+        if (shape != null && shape.TryGetInteriorSpanAtY(y, out minX, out maxX))
+        {
+            return true;
+        }
+
+        minX = -innerWidth * 0.5f;
+        maxX = innerWidth * 0.5f;
+        return shape == null;
     }
 }

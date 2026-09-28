@@ -43,6 +43,8 @@ public class MergeCoordinator : MonoBehaviour
     /// <summary>Raised when two max-tier items annihilate: (position, awardedScore).</summary>
     public event Action<Vector3, int> TopTierPopped;
 
+    /// <summary>True when a merge is queued and has not been resolved yet.</summary>
+    public static bool HasPendingMerges => PendingMerges.Count > 0;
     /// <summary>Queues a merge candidate pair. Called from collision callbacks only.</summary>
     public static void Enqueue(MergeItem a, MergeItem b, Vector3 contactPoint)
     {
@@ -127,6 +129,8 @@ private void ResolvePair(PendingMerge pending)
         Vector3 mergeVelocity = ComputeMassWeightedVelocity(first, second);
         MergeItemDecorationLayout firstDecorations = first.CaptureDecorations();
         MergeItemDecorationLayout secondDecorations = second.CaptureDecorations();
+        float firstHairiness = first.Hairiness;
+        float secondHairiness = second.Hairiness;
 
         first.MarkConsumed();
         second.MarkConsumed();
@@ -152,6 +156,7 @@ private void ResolvePair(PendingMerge pending)
         }
 
         merged.InheritDecorations(firstDecorations, secondDecorations);
+        merged.InheritHairiness(firstHairiness, secondHairiness);
         merged.Release();
         merged.SetVelocity(mergeVelocity);
 

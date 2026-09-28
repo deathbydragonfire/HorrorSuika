@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -42,6 +43,8 @@ public class ItemDropper : MonoBehaviour
     private InputAction aimDeltaAction;
     private InputAction moveDropperAction;
     private InputAction dropButtonAction;
+
+    private static readonly List<RaycastResult> UiHits = new List<RaycastResult>(8);
 
     private AimSource aimSource = AimSource.Pointer;
     private bool inputEnabled;
@@ -249,6 +252,31 @@ public class ItemDropper : MonoBehaviour
         }
     }
 
+    // Parameterless IsPointerOverGameObject only sees the mouse. A touch on an itch.io
+    // page would otherwise start a drop on top of a button.
+    private static bool PressBeganOverUi()
+    {
+        EventSystem eventSystem = EventSystem.current;
+        if (eventSystem == null)
+        {
+            return false;
+        }
+
+        Pointer pointer = Pointer.current;
+        if (pointer == null)
+        {
+            return eventSystem.IsPointerOverGameObject();
+        }
+
+        var eventData = new PointerEventData(eventSystem)
+        {
+            position = pointer.position.ReadValue()
+        };
+        UiHits.Clear();
+        eventSystem.RaycastAll(eventData, UiHits);
+        return UiHits.Count > 0;
+    }
+
     private void OnPointerPressStarted(InputAction.CallbackContext context)
     {
         if (!inputEnabled || HeldItem == null)
@@ -256,9 +284,9 @@ public class ItemDropper : MonoBehaviour
             return;
         }
 
-        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+        if (PressBeganOverUi())
         {
-            // A press that begins on interactive UI (e.g. Restart) never reaches the dropper.
+            // A press that begins on UI (Restart, level select) never reaches the dropper.
             return;
         }
 

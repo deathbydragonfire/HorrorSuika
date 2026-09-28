@@ -4,26 +4,27 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Reads GameController, ScoreController, and LevelObjectiveTracker events and drives the score
-/// label, next-item preview, objective checklist, and the game-over and victory panels.
+/// Reads GameController, ScoreController, and LevelObjectiveTracker events and drives the level
+/// info panel, objective checklist, and the game-over and victory panels.
 /// Never talks to physics directly.
 /// </summary>
 public class GameHudView : MonoBehaviour
 {
-    private const float PreviewMaxSize = 140f;
-    private const float PreviewSizePerRadiusUnit = 110f;
-    private const float PreviewMinSize = 44f;
-
     [Header("Run")]
     [SerializeField] private TextMeshProUGUI scoreLabel;
-    [SerializeField] private Image nextPreviewImage;
-    [SerializeField] private TextMeshProUGUI nextPreviewLabel;
 
     [Header("Level")]
     [SerializeField] private TextMeshProUGUI levelNameLabel;
     [SerializeField] private TextMeshProUGUI limitLabel;
     [SerializeField] private Transform objectiveListRoot;
+    [SerializeField] private Transform onOneListRoot;
+    [SerializeField] private Transform quotaListRoot;
+    [SerializeField] private GameObject objectiveSectionRule;
+    [SerializeField] private GameObject orderFormTitle;
+    [SerializeField] private GameObject atOnceLabel;
     [SerializeField] private LevelObjectiveRowView objectiveRowPrefab;
+    [SerializeField] private Button resetLevelButton;
+    [SerializeField] private Button homeButton;
 
     [Header("Game Over")]
     [SerializeField] private GameObject gameOverPanel;
@@ -42,24 +43,18 @@ public class GameHudView : MonoBehaviour
 
     private readonly List<LevelObjectiveRowView> objectiveRows = new List<LevelObjectiveRowView>();
 
-    private MergeItemTierTable tierTable;
-    private NextItemQueue nextItemQueue;
     private ScoreController scoreController;
     private GameController gameController;
     private LevelObjectiveTracker objectiveTracker;
 
     /// <summary>Injects the data and systems the HUD reflects.</summary>
     public void Configure(
-        MergeItemTierTable table,
-        NextItemQueue queue,
         ScoreController score,
         GameController game,
         LevelObjectiveTracker tracker)
     {
         Unsubscribe();
 
-        tierTable = table;
-        nextItemQueue = queue;
         scoreController = score;
         gameController = game;
         objectiveTracker = tracker;
@@ -68,12 +63,6 @@ public class GameHudView : MonoBehaviour
         {
             scoreController.ScoreChanged += OnScoreChanged;
             OnScoreChanged(scoreController.Score);
-        }
-
-        if (nextItemQueue != null)
-        {
-            nextItemQueue.Changed += OnNextItemChanged;
-            OnNextItemChanged();
         }
 
         if (gameController != null)
@@ -87,6 +76,8 @@ public class GameHudView : MonoBehaviour
             RebuildObjectiveRows();
         }
 
+        BindButton(resetLevelButton, OnRestartClicked);
+        BindButton(homeButton, OnLevelSelectClicked);
         BindButton(restartButton, OnRestartClicked);
         BindButton(retryButton, OnRestartClicked);
         BindButton(nextLevelButton, OnNextLevelClicked);
@@ -94,6 +85,7 @@ public class GameHudView : MonoBehaviour
         BindButton(gameOverLevelSelectButton, OnLevelSelectClicked);
 
         UpdateLevelLabel();
+        UpdateScoreVisibility();
         SetGameOverVisible(false, 0);
         SetVictoryVisible(false, 0);
     }
@@ -108,7 +100,9 @@ public class GameHudView : MonoBehaviour
 
         if (visible && gameOverLabel != null)
         {
-            gameOverLabel.text = $"{BuildFailureHeadline()}\nScore {finalScore}";
+            gameOverLabel.text = LevelRequiresScore()
+                ? $"{BuildFailureHeadline()}\nScore {finalScore}"
+                : BuildFailureHeadline();
         }
     }
 
@@ -122,7 +116,9 @@ public class GameHudView : MonoBehaviour
 
         if (visible && victoryLabel != null)
         {
-            victoryLabel.text = $"Level Complete\nScore {finalScore}";
+            victoryLabel.text = LevelRequiresScore()
+                ? $"Level Complete\nScore {finalScore}"
+                : "Level Complete";
         }
 
         if (nextLevelButton != null)
@@ -146,11 +142,6 @@ public class GameHudView : MonoBehaviour
         if (scoreController != null)
         {
             scoreController.ScoreChanged -= OnScoreChanged;
-        }
-
-        if (nextItemQueue != null)
-        {
-            nextItemQueue.Changed -= OnNextItemChanged;
         }
 
         if (gameController != null)
@@ -193,13 +184,255 @@ public class GameHudView : MonoBehaviour
         objectiveRows.Clear();
 
         IReadOnlyList<LevelObjectiveTracker.ObjectiveProgress> progress = objectiveTracker.Progress;
+        int onOneCount = 0;
+        int quotaCount = 0;
         for (int i = 0; i < progress.Count; i++)
         {
-            LevelObjectiveRowView row = Instantiate(objectiveRowPrefab, objectiveListRoot);
-            row.Bind(progress[i]);
+            LevelObjectiveTracker.ObjectiveProgress entry = progress[i];
+            bool onOne = entry.IsOnOne;
+            Transform parent = onOne ? onOneListRoot : quotaListRoot;
+            if (parent == null)
+            {
+                parent = objectiveListRoot;
+            }
+
+            if (parent == null)
+            {
+                continue;
+            }
+
+            LevelObjectiveRowView row = Instantiate(objectiveRowPrefab, parent);
+            if (!onOne)
+            {
+                row.SetStripe(quotaCount);
+                quotaCount++;
+            }
+            else
+            {
+                onOneCount++;
+            }
+
+            row.Bind(entry);
             objectiveRows.Add(row);
         }
+
+        ApplyGoalSectionVisibility(onOneCount, quotaCount, GlobalGoalsAreAtOnce());
     }
+
+    private void ApplyGoalSectionVisibility(int onOneCount, int quotaCount, bool atOnce)
+    {
+        bool showOnOne = onOneCount > 0;
+        bool showQuota = quotaCount > 0;
+        SetActiveIfDifferent(onOneListRoot != null ? onOneListRoot.gameObject : null, showOnOne);
+        SetActiveIfDifferent(quotaListRoot != null ? quotaListRoot.gameObject : null, showQuota);
+        SetActiveIfDifferent(objectiveSectionRule, showOnOne && showQuota);
+
+        bool showAtOnce = showQuota && atOnce;
+        SetActiveIfDifferent(atOnceLabel, showAtOnce);
+        if (showAtOnce)
+        {
+            SetSectionLabel(atOnceLabel, "At Once");
+        }
+    }
+
+    private static void SetActiveIfDifferent(GameObject gameObject, bool active)
+    {
+        if (gameObject != null && gameObject.activeSelf != active)
+        {
+            gameObject.SetActive(active);
+        }
+    }
+
+    private bool GlobalGoalsAreAtOnce()
+    {
+        LevelDefinition level = gameController != null ? gameController.CurrentLevel : null;
+        return GoalsAreAtOnce(level);
+    }
+
+    private static bool GoalsAreAtOnce(LevelDefinition level)
+    {
+        IReadOnlyList<LevelObjective> objectives = level != null ? level.Objectives : null;
+        if (objectives == null)
+        {
+            return false;
+        }
+
+        bool sawGlobal = false;
+        for (int i = 0; i < objectives.Count; i++)
+        {
+            LevelObjective objective = objectives[i];
+            if (objective == null || objective.IsOnOneGoal || objective.ObjectiveType == LevelObjectiveType.ScoreAtLeast)
+            {
+                continue;
+            }
+
+            sawGlobal = true;
+            if (objective.CountMode != ObjectiveCountMode.Simultaneous)
+            {
+                return false;
+            }
+        }
+
+        return sawGlobal;
+    }
+
+#if UNITY_EDITOR
+    private const string GoalPreviewName = "GoalPreview";
+
+    /// <summary>Shows the level's goal lines on the ticket while the editor is not playing.</summary>
+    public void ShowEditorGoalPreview(LevelDefinition level, MergeItemTierTable table)
+    {
+        if (Application.isPlaying || objectiveRowPrefab == null)
+        {
+            return;
+        }
+
+        ClearEditorGoalPreview();
+
+        IReadOnlyList<LevelObjective> objectives = level != null ? level.Objectives : null;
+        int count = objectives != null ? objectives.Count : 0;
+        int onOneCount = 0;
+        int quotaCount = 0;
+        for (int i = 0; i < count; i++)
+        {
+            LevelObjective objective = objectives[i];
+            if (objective == null)
+            {
+                continue;
+            }
+
+            bool onOne = objective.IsOnOneGoal;
+            Transform parent = onOne ? onOneListRoot : quotaListRoot;
+            if (parent == null)
+            {
+                parent = objectiveListRoot;
+            }
+
+            if (parent == null)
+            {
+                continue;
+            }
+
+            string[] parts = objective.BuildOnOneParts(table);
+            bool[] partMet = parts != null ? new bool[parts.Length] : null;
+            var progress = new LevelObjectiveTracker.ObjectiveProgress(
+                i,
+                0,
+                objective.RequiredCount,
+                false,
+                objective.BuildTicketCategory(table),
+                onOne,
+                parts,
+                partMet);
+
+            LevelObjectiveRowView row = Instantiate(objectiveRowPrefab, parent);
+            row.gameObject.name = GoalPreviewName;
+            if (!onOne)
+            {
+                row.SetStripe(quotaCount);
+                quotaCount++;
+            }
+            else
+            {
+                onOneCount++;
+            }
+
+            row.Bind(progress);
+            MarkGoalPreview(row.gameObject);
+        }
+
+        ApplyGoalSectionVisibility(onOneCount, quotaCount, GoalsAreAtOnce(level));
+    }
+
+    /// <summary>Removes editor-only goal lines from the ticket.</summary>
+    public void ClearEditorGoalPreview()
+    {
+        if (Application.isPlaying)
+        {
+            return;
+        }
+
+        DestroyGoalPreviews(objectiveListRoot);
+        if (onOneListRoot != null && !IsUnder(onOneListRoot, objectiveListRoot))
+        {
+            DestroyGoalPreviews(onOneListRoot);
+        }
+
+        if (quotaListRoot != null && !IsUnder(quotaListRoot, objectiveListRoot))
+        {
+            DestroyGoalPreviews(quotaListRoot);
+        }
+    }
+
+    /// <summary>How many editor goal lines are currently on the ticket.</summary>
+    public int EditorGoalPreviewCount()
+    {
+        int count = CountGoalPreviews(objectiveListRoot);
+        if (onOneListRoot != null && !IsUnder(onOneListRoot, objectiveListRoot))
+        {
+            count += CountGoalPreviews(onOneListRoot);
+        }
+
+        if (quotaListRoot != null && !IsUnder(quotaListRoot, objectiveListRoot))
+        {
+            count += CountGoalPreviews(quotaListRoot);
+        }
+
+        return count;
+    }
+
+    private static bool IsUnder(Transform child, Transform parent)
+    {
+        return parent != null && child.IsChildOf(parent);
+    }
+
+    private static void MarkGoalPreview(GameObject gameObject)
+    {
+        Transform[] transforms = gameObject.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            transforms[i].gameObject.hideFlags = HideFlags.DontSaveInEditor | HideFlags.HideInHierarchy | HideFlags.NotEditable;
+        }
+    }
+
+    private static void DestroyGoalPreviews(Transform root)
+    {
+        if (root == null)
+        {
+            return;
+        }
+
+        LevelObjectiveRowView[] rows = root.GetComponentsInChildren<LevelObjectiveRowView>(true);
+        for (int i = rows.Length - 1; i >= 0; i--)
+        {
+            LevelObjectiveRowView row = rows[i];
+            if (row != null && row.gameObject.name == GoalPreviewName)
+            {
+                DestroyImmediate(row.gameObject);
+            }
+        }
+    }
+
+    private static int CountGoalPreviews(Transform root)
+    {
+        if (root == null)
+        {
+            return 0;
+        }
+
+        int count = 0;
+        LevelObjectiveRowView[] rows = root.GetComponentsInChildren<LevelObjectiveRowView>(true);
+        for (int i = 0; i < rows.Length; i++)
+        {
+            if (rows[i] != null && rows[i].gameObject.name == GoalPreviewName)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+#endif
 
     private void OnObjectiveProgressChanged(LevelObjectiveTracker.ObjectiveProgress progress)
     {
@@ -229,7 +462,100 @@ public class GameHudView : MonoBehaviour
         }
 
         LevelDefinition level = gameController != null ? gameController.CurrentLevel : null;
-        levelNameLabel.text = level != null ? level.DisplayName : string.Empty;
+        int index = gameController != null ? gameController.CurrentLevelIndex : -1;
+        levelNameLabel.fontSize = 36f;
+        levelNameLabel.fontStyle = FontStyles.Bold;
+        if (orderFormTitle != null)
+        {
+            orderFormTitle.SetActive(true);
+            SetSectionLabel(orderFormTitle, "Order form");
+        }
+
+        if (index >= 0)
+        {
+            levelNameLabel.text = $"Level {index + 1}";
+        }
+        else
+        {
+            levelNameLabel.text = level != null ? level.DisplayName : string.Empty;
+        }
+
+        UpdateScoreVisibility();
+    }
+
+    private static void SetSectionLabel(GameObject label, string text)
+    {
+        if (label == null)
+        {
+            return;
+        }
+
+        TMP_Text view = label.GetComponent<TMP_Text>();
+        if (view != null)
+        {
+            view.text = text;
+        }
+    }
+
+    private void UpdateScoreVisibility()
+    {
+        bool showScore = LevelRequiresScore();
+        if (scoreLabel != null && scoreLabel.gameObject.activeSelf != showScore)
+        {
+            scoreLabel.gameObject.SetActive(showScore);
+        }
+
+        UpdateHeaderChrome();
+    }
+
+    private bool LevelRequiresScore()
+    {
+        LevelDefinition level = gameController != null ? gameController.CurrentLevel : null;
+        IReadOnlyList<LevelObjective> objectives = level != null ? level.Objectives : null;
+        if (objectives == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < objectives.Count; i++)
+        {
+            LevelObjective objective = objectives[i];
+            if (objective != null && objective.ObjectiveType == LevelObjectiveType.ScoreAtLeast)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void UpdateHeaderChrome()
+    {
+        if (levelNameLabel == null)
+        {
+            return;
+        }
+
+        bool scoreOn = scoreLabel != null && scoreLabel.gameObject.activeSelf;
+        bool limitOn = limitLabel != null && limitLabel.gameObject.activeSelf;
+        bool showRight = scoreOn || limitOn;
+        Transform header = levelNameLabel.transform.parent;
+        if (header == null)
+        {
+            return;
+        }
+
+        Transform split = header.Find("HeaderSplit");
+        if (split != null && split.gameObject.activeSelf != showRight)
+        {
+            split.gameObject.SetActive(showRight);
+        }
+
+        Transform stack = header.Find("ScoreStack");
+        if (stack != null && stack.gameObject.activeSelf != showRight)
+        {
+            stack.gameObject.SetActive(showRight);
+        }
     }
 
     private void UpdateLimitLabel()
@@ -240,6 +566,19 @@ public class GameHudView : MonoBehaviour
         }
 
         float timeRemaining = gameController.TimeRemaining;
+        int dropsRemaining = gameController.DropsRemaining;
+        bool hasLimit = timeRemaining >= 0f || dropsRemaining >= 0;
+        if (limitLabel.gameObject.activeSelf != hasLimit)
+        {
+            limitLabel.gameObject.SetActive(hasLimit);
+        }
+
+        UpdateHeaderChrome();
+        if (!hasLimit)
+        {
+            return;
+        }
+
         if (timeRemaining >= 0f)
         {
             int seconds = Mathf.CeilToInt(timeRemaining);
@@ -247,8 +586,7 @@ public class GameHudView : MonoBehaviour
             return;
         }
 
-        int dropsRemaining = gameController.DropsRemaining;
-        limitLabel.text = dropsRemaining >= 0 ? $"{dropsRemaining} drops" : string.Empty;
+        limitLabel.text = $"{dropsRemaining} drops";
     }
 
     private void OnScoreChanged(int score)
@@ -256,32 +594,6 @@ public class GameHudView : MonoBehaviour
         if (scoreLabel != null)
         {
             scoreLabel.text = score.ToString();
-        }
-    }
-
-    private void OnNextItemChanged()
-    {
-        if (tierTable == null || nextItemQueue == null)
-        {
-            return;
-        }
-
-        MergeItemTier tier = tierTable.GetTier(nextItemQueue.NextTier);
-        if (tier == null)
-        {
-            return;
-        }
-
-        if (nextPreviewImage != null)
-        {
-            nextPreviewImage.color = tier.PlaceholderColor;
-            float size = Mathf.Clamp(tier.Radius * PreviewSizePerRadiusUnit, PreviewMinSize, PreviewMaxSize);
-            nextPreviewImage.rectTransform.sizeDelta = new Vector2(size, size);
-        }
-
-        if (nextPreviewLabel != null)
-        {
-            nextPreviewLabel.text = "NEXT";
         }
     }
 

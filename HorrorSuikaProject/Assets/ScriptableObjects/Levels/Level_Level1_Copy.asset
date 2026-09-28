@@ -1,0 +1,46 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 887c97ed2d88ae542ad8deff5c05694d, type: 3}
+  m_Name: Level_Level1
+  m_EditorClassIdentifier: Assembly-CSharp::LevelDefinition
+  levelId: level_level1_copy
+  displayName: Level2
+  tierTable: {fileID: 0}
+  shapePrefab: {fileID: 1038717169968416876, guid: 5c1815b4f1f3eac4aa84b850234601b5, type: 3}
+  shapeDefinition: {fileID: 11400000, guid: ef74cc5c3c200a845aad54bf2eeaeb89, type: 2}
+  objectives:
+  - objectiveType: 0
+    countMode: 0
+    tierIndex: -1
+    requiredCount: 20
+    requiredDecorations: []
+    hairRequirement: 1
+    descriptionOverride: 
+  - objectiveType: 2
+    countMode: 0
+    tierIndex: -1
+    requiredCount: 1
+    requiredDecorations:
+    - decorationIndex: 0
+      requiredCount: 1
+    - decorationIndex: 2
+      requiredCount: 1
+    - decorationIndex: 1
+      requiredCount: 1
+    hairRequirement: 0
+    descriptionOverride: 
+  initialSpawnableTierCount: 2
+  maxSpawnableTierCount: 7
+  dropLimit: 0
+  timeLimitSeconds: 0
+  randomSeed: 0
+  victorySettleTimeout: 5

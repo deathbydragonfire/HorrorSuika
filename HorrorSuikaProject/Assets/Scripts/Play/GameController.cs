@@ -71,6 +71,7 @@ public class GameController : MonoBehaviour
 
     private InputAction restartAction;
     private Coroutine settleRoutine;
+    private bool victoryInterruptedByMerge;
     private MergeItemTierTable activeTierTable;
     private int dropCount;
     private float levelTimeRemaining;
@@ -144,7 +145,7 @@ public class GameController : MonoBehaviour
 
         if (hudView != null)
         {
-            hudView.Configure(activeTierTable, nextItemQueue, scoreController, this, objectiveTracker);
+            hudView.Configure(scoreController, this, objectiveTracker);
         }
 
         mergeCoordinator.MergePerformed += OnMergePerformed;
@@ -275,6 +276,32 @@ public class GameController : MonoBehaviour
     public bool HasNextLevel()
     {
         return levelSequence != null && levelSequence.TryGetNext(CurrentLevel, out _, out _);
+    }
+
+    /// <summary>
+    /// Records the current level as won and loads the next one, skipping the settle wait.
+    /// On the last level, opens the victory panel instead.
+    /// </summary>
+    public void DebugCompleteAndAdvance()
+    {
+        StopSettleRoutine();
+        RecordLevelVictory();
+
+        if (TryAdvanceToNextLevel())
+        {
+            return;
+        }
+
+        itemDropper.SetInputEnabled(false);
+        itemDropper.ClearHeldItem();
+        gameOverWatcher.SetActive(false);
+
+        if (objectiveTracker != null)
+        {
+            objectiveTracker.SetActive(false);
+        }
+
+        SetState(GameState.Victory);
     }
 
     /// <summary>Returns to the level-select scene.</summary>
@@ -417,11 +444,21 @@ public class GameController : MonoBehaviour
 
         // A tier becomes droppable once the player has produced it by merging.
         nextItemQueue.UnlockTier(resultTierIndex);
+
+        if (State == GameState.VictoryPending)
+        {
+            victoryInterruptedByMerge = true;
+        }
     }
 
     private void OnTopTierPopped(Vector3 position, int awardedScore)
     {
         scoreController.Add(awardedScore);
+
+        if (State == GameState.VictoryPending)
+        {
+            victoryInterruptedByMerge = true;
+        }
     }
 
     private void OnItemDropped(MergeItem item)
@@ -475,12 +512,8 @@ public class GameController : MonoBehaviour
         }
 
         // The watcher is cut immediately: an overflow during the settle window must not steal a won level.
+        // The objective tracker stays active so a merge can drop the live count and cancel the win.
         gameOverWatcher.SetActive(false);
-
-        if (objectiveTracker != null)
-        {
-            objectiveTracker.SetActive(false);
-        }
 
         itemDropper.SetInputEnabled(false);
         itemDropper.ClearHeldItem();
@@ -492,23 +525,86 @@ public class GameController : MonoBehaviour
 
     private IEnumerator SettleThenWin()
     {
-        float timeout = CurrentLevel != null ? CurrentLevel.VictorySettleTimeout : 1f;
-        float elapsed = 0f;
+        float requiredQuiet = CurrentLevel != null ? CurrentLevel.VictorySettleTimeout : 5f;
+        float quiet = 0f;
+        victoryInterruptedByMerge = false;
 
-        while (elapsed < timeout && !IsBoardAtRest())
+        while (quiet < requiredQuiet)
         {
-            elapsed += Time.deltaTime;
-            yield return null;
+            yield return new WaitForFixedUpdate();
+
+            if (State != GameState.VictoryPending)
+            {
+                settleRoutine = null;
+                yield break;
+            }
+
+            if (objectiveTracker != null && !objectiveTracker.AreObjectivesSatisfied())
+            {
+                ResumePlayAfterRejectedVictory();
+                yield break;
+            }
+
+            // A merge can drop the live count, so it restarts the quiet period instead of winning.
+            if (victoryInterruptedByMerge || !IsBoardAtRest() || MergeCoordinator.HasPendingMerges)
+            {
+                victoryInterruptedByMerge = false;
+                quiet = 0f;
+                continue;
+            }
+
+            quiet += Time.fixedDeltaTime;
         }
 
         settleRoutine = null;
 
-        if (CurrentLevel != null)
+        if (objectiveTracker != null && !objectiveTracker.AreObjectivesSatisfied())
         {
-            LevelProgressStore.MarkCompleted(CurrentLevel.LevelId, CurrentLevelIndex, scoreController.Score);
+            ResumePlayAfterRejectedVictory();
+            yield break;
         }
 
+        RecordLevelVictory();
         SetState(GameState.Victory);
+    }
+
+    private void RecordLevelVictory()
+    {
+        if (CurrentLevel == null)
+        {
+            return;
+        }
+
+        int score = scoreController != null ? scoreController.Score : 0;
+        LevelProgressStore.MarkCompleted(CurrentLevel.LevelId, CurrentLevelIndex, score);
+    }
+
+    private void ResumePlayAfterRejectedVictory()
+    {
+        settleRoutine = null;
+        victoryInterruptedByMerge = false;
+
+        if (gameOverWatcher != null)
+        {
+            gameOverWatcher.SetActive(true);
+        }
+
+        if (objectiveTracker != null)
+        {
+            objectiveTracker.RevokeCompletion();
+            objectiveTracker.SetActive(true);
+        }
+
+        if (itemDropper != null)
+        {
+            itemDropper.SetInputEnabled(true);
+            itemDropper.PrepareNext();
+        }
+
+        if (State == GameState.VictoryPending)
+        {
+            SetState(GameState.Playing);
+        }
     }
 
     private bool IsBoardAtRest()

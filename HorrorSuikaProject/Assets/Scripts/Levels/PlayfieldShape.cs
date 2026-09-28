@@ -130,7 +130,41 @@ public class PlayfieldShape : MonoBehaviour
             return false;
         }
 
-        float centerX = transform.TransformPoint(new Vector3(0f, 0f, 0f)).x;
+        if (TryMeasureInteriorSpan(y, out minX, out maxX))
+        {
+            return true;
+        }
+
+        // Above the rim or below the floor there is no wall crossing. Use the opening at the
+        // nearest height that still has walls, so a line set past the rim keeps the rim's width.
+        float minY = worldOutline[0].y;
+        float maxY = worldOutline[0].y;
+        for (int i = 1; i < worldOutline.Length; i++)
+        {
+            minY = Mathf.Min(minY, worldOutline[i].y);
+            maxY = Mathf.Max(maxY, worldOutline[i].y);
+        }
+
+        const float edgeInset = 0.001f;
+        if (maxY - minY <= edgeInset * 2f)
+        {
+            return false;
+        }
+
+        float sampleY = Mathf.Clamp(y, minY + edgeInset, maxY - edgeInset);
+        if (Mathf.Abs(sampleY - y) <= edgeInset)
+        {
+            return false;
+        }
+
+        return TryMeasureInteriorSpan(sampleY, out minX, out maxX);
+    }
+
+    private bool TryMeasureInteriorSpan(float y, out float minX, out float maxX)
+    {
+        minX = 0f;
+        maxX = 0f;
+        float centerX = transform.TransformPoint(Vector3.zero).x;
         bool foundLeft = false;
         bool foundRight = false;
 
@@ -162,18 +196,7 @@ public class PlayfieldShape : MonoBehaviour
             }
         }
 
-        Bounds worldBounds = WorldBounds;
-        if (!foundLeft)
-        {
-            minX = worldBounds.min.x;
-        }
-
-        if (!foundRight)
-        {
-            maxX = worldBounds.max.x;
-        }
-
-        return foundLeft || foundRight;
+        return foundLeft && foundRight;
     }
 
     /// <summary>

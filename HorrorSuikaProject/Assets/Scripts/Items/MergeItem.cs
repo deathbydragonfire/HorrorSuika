@@ -31,6 +31,7 @@ public class MergeItem : MonoBehaviour
     [SerializeField] private MeshRenderer meshRenderer;
     [SerializeField] private FleshVisualComponent fleshVisual;
     [SerializeField] private MergeItemDecorations decorations;
+    [SerializeField] private MergeItemHair hair;
 
     private MergeItemTierTable tierTable;
     private float settleTimer;
@@ -94,6 +95,11 @@ public class MergeItem : MonoBehaviour
         if (decorations == null)
         {
             decorations = GetComponent<MergeItemDecorations>();
+        }
+
+        if (hair == null)
+        {
+            hair = GetComponent<MergeItemHair>();
         }
     }
 
@@ -174,6 +180,11 @@ public class MergeItem : MonoBehaviour
         {
             decorations.PopulateForNewSpawn(tierTable, TierIndex);
         }
+
+        if (hair != null)
+        {
+            hair.RollForNewSpawn(tierTable);
+        }
     }
 
     /// <summary>Hands the item over to physics and starts the settle grace window.</summary>
@@ -209,6 +220,11 @@ public class MergeItem : MonoBehaviour
             decorations.Clear();
         }
 
+        if (hair != null)
+        {
+            hair.Clear();
+        }
+
         if (sphereCollider != null)
         {
             sphereCollider.enabled = false;
@@ -230,6 +246,34 @@ public class MergeItem : MonoBehaviour
         {
             decorations.ApplyInherited(tierTable, first, second);
         }
+    }
+
+    /// <summary>Visible fraction of the hair coat, from 0 (bare) to 1 (full). Bare when this item has no hair layer.</summary>
+    public float Hairiness => hair != null ? hair.Hairiness : 0f;
+
+    /// <summary>True when this blob is wearing a hair coat.</summary>
+    public bool IsHairy => Hairiness > 0f;
+
+    /// <summary>
+    /// Sets the coat from both parents. Two bare parents stay bare. Any other pair averages, then
+    /// raises the result to the minimum so a hairy blob cannot merge down to bare.
+    /// </summary>
+    public void InheritHairiness(float firstHairiness, float secondHairiness)
+    {
+        if (hair == null)
+        {
+            return;
+        }
+
+        if (firstHairiness <= 0f && secondHairiness <= 0f)
+        {
+            hair.SetHairiness(0f);
+            return;
+        }
+
+        float average = (firstHairiness + secondHairiness) * 0.5f;
+        float floor = tierTable != null ? tierTable.MinimumHairiness : 0f;
+        hair.SetHairiness(Mathf.Max(average, floor));
     }
 
     /// <summary>Snapshots this item's decorations before it is despawned for a merge.</summary>

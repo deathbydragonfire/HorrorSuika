@@ -6,8 +6,8 @@ using UnityEditorInternal;
 using UnityEngine;
 
 /// <summary>
-/// Level authoring inspector: create and edit a <see cref="LevelDefinition"/>, draw its playfield
-/// curve in the Scene view, and manage sequence membership.
+/// Level authoring inspector: switch levels, save and load their curves and goals, draw the
+/// playfield in the Scene view, and manage sequence membership.
 /// </summary>
 [CustomEditor(typeof(LevelAuthor))]
 public class LevelAuthorEditor : Editor
@@ -33,6 +33,10 @@ public class LevelAuthorEditor : Editor
     private ReorderableList objectiveList;
     private Editor shapeDefinitionEditor;
     private string newLevelName = "New Level";
+    private LevelDefinition loadedLevel;
+    private bool pendingGeometryInstall;
+    private string renameText = string.Empty;
+    private LevelDefinition renameSource;
 
     private void OnEnable()
     {
@@ -43,6 +47,7 @@ public class LevelAuthorEditor : Editor
         bakeTargetProperty = serializedObject.FindProperty("bakeTargetPrefab");
         hostProperty = serializedObject.FindProperty("shapeHost");
         tierTableProperty = serializedObject.FindProperty("tierTable");
+        loadedLevel = levelProperty.objectReferenceValue as LevelDefinition;
         BindLevelSerialized();
     }
 
@@ -59,11 +64,18 @@ public class LevelAuthorEditor : Editor
         serializedObject.Update();
         LevelAuthor author = (LevelAuthor)target;
 
+        DrawLevelSwitcher(author);
+        EditorGUILayout.Space();
         DrawCreateSection(author);
         EditorGUILayout.Space();
-        DrawLevelIdentity();
+        DrawLevelReferences();
         SyncShapeFromLevel();
         serializedObject.ApplyModifiedProperties();
+        if (pendingGeometryInstall)
+        {
+            pendingGeometryInstall = false;
+            InstallGeometry(author, author.Level != null ? author.Level.ShapePrefab : null);
+        }
 
         LevelDefinition level = author.Level;
         if (level == null)
@@ -74,6 +86,7 @@ public class LevelAuthorEditor : Editor
 
         BindLevelSerialized();
         levelSerialized.Update();
+        DrawLevelIdentityFields();
 
         EditorGUILayout.Space();
         DrawPassRequirements(author);
@@ -136,20 +149,164 @@ public class LevelAuthorEditor : Editor
         }
     }
 
-    private void DrawLevelIdentity()
+    private void DrawLevelSwitcher(LevelAuthor author)
     {
         EditorGUILayout.LabelField("Level", EditorStyles.boldLabel);
+
+        List<LevelDefinition> levels = CollectSwitchableLevels(author.Sequence);
+        LevelDefinition shown = levelProperty.objectReferenceValue as LevelDefinition;
+        int current = shown != null ? levels.IndexOf(shown) : -1;
+
+        if (levels.Count == 0)
+        {
+            EditorGUILayout.HelpBox("No level assets found yet. Create one below.", MessageType.Info);
+        }
+        else
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                using (new EditorGUI.DisabledScope(current <= 0))
+                {
+                    if (GUILayout.Button("Previous", GUILayout.Width(76f)))
+                    {
+                        OpenLevel(author, levels[current - 1]);
+                    }
+                }
+
+                string[] labels = new string[levels.Count];
+                for (int i = 0; i < levels.Count; i++)
+                {
+                    labels[i] = FormatLevelChoice(levels[i], levels);
+                }
+
+                if (current < 0)
+                {
+                    string[] unassigned = new string[labels.Length + 1];
+                    unassigned[0] = shown != null ? shown.DisplayName : "Select a level";
+                    System.Array.Copy(labels, 0, unassigned, 1, labels.Length);
+                    int picked = EditorGUILayout.Popup(0, unassigned);
+                    if (picked > 0)
+                    {
+                        OpenLevel(author, levels[picked - 1]);
+                    }
+                }
+                else
+                {
+                    int picked = EditorGUILayout.Popup(current, labels);
+                    if (picked != current && picked >= 0 && picked < levels.Count)
+                    {
+                        OpenLevel(author, levels[picked]);
+                    }
+                }
+
+                using (new EditorGUI.DisabledScope(current < 0 || current >= levels.Count - 1))
+                {
+                    if (GUILayout.Button("Next", GUILayout.Width(52f)))
+                    {
+                        OpenLevel(author, levels[current + 1]);
+                    }
+                }
+            }
+        }
+
+        DrawRenameRow(shown);
+
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            using (new EditorGUI.DisabledScope(shown == null))
+            {
+                if (GUILayout.Button("Save Geometry and Goals"))
+                {
+                    SaveCurrentLevel(author);
+                }
+
+                if (GUILayout.Button("Load Geometry and Goals"))
+                {
+                    LoadCurrentLevel(author);
+                }
+            }
+        }
+
+        EditorGUILayout.HelpBox(
+            "Previous, Next, and the level list load that level's curve and goals. Save bakes the curve into the level and writes its goals to disk. Load restores the curve and goals from the last save.",
+            MessageType.None);
+    }
+
+    private void DrawRenameRow(LevelDefinition shown)
+    {
+        if (shown == null)
+        {
+            return;
+        }
+
+        if (renameSource != shown)
+        {
+            renameSource = shown;
+            renameText = shown.DisplayName ?? string.Empty;
+        }
+
+        string trimmed = renameText != null ? renameText.Trim() : string.Empty;
+        bool unchanged = trimmed == shown.DisplayName;
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            GUI.SetNextControlName("LevelRename");
+            renameText = EditorGUILayout.TextField(
+                new GUIContent("Name", "Name shown in the level list, the HUD, and level select."),
+                renameText);
+            using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(trimmed) || unchanged))
+            {
+                bool submit = GUILayout.Button("Rename", GUILayout.Width(72f));
+                Event current = Event.current;
+                bool enter = current.type == EventType.KeyDown
+                    && (current.keyCode == KeyCode.Return || current.keyCode == KeyCode.KeypadEnter)
+                    && GUI.GetNameOfFocusedControl() == "LevelRename";
+                if ((submit || enter) && !string.IsNullOrWhiteSpace(trimmed) && !unchanged)
+                {
+                    if (enter)
+                    {
+                        current.Use();
+                    }
+
+                    RenameLevel(shown, trimmed);
+                }
+            }
+        }
+    }
+
+    private void RenameLevel(LevelDefinition level, string displayName)
+    {
+        BindLevelSerialized();
+        if (levelSerialized == null || levelSerialized.targetObject != level)
+        {
+            levelSerialized?.Dispose();
+            levelSerialized = new SerializedObject(level);
+        }
+
+        levelSerialized.Update();
+        levelSerialized.FindProperty("displayName").stringValue = displayName;
+        levelSerialized.ApplyModifiedProperties();
+        EditorUtility.SetDirty(level);
+        AssetDatabase.SaveAssets();
+        renameText = displayName;
+        renameSource = level;
+        GUIUtility.ExitGUI();
+    }
+
+    private void DrawLevelReferences()
+    {
         EditorGUILayout.PropertyField(levelProperty);
         EditorGUILayout.PropertyField(sequenceProperty);
         EditorGUILayout.PropertyField(tierTableProperty);
+    }
 
+    private void DrawLevelIdentityFields()
+    {
         if (levelSerialized == null)
         {
             return;
         }
 
         EditorGUILayout.PropertyField(levelSerialized.FindProperty("levelId"));
-        EditorGUILayout.PropertyField(levelSerialized.FindProperty("displayName"));
         EditorGUILayout.PropertyField(levelSerialized.FindProperty("tierTable"));
     }
 
@@ -157,7 +314,7 @@ public class LevelAuthorEditor : Editor
     {
         EditorGUILayout.LabelField("Pass Requirements", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
-            "Every objective must hold at the same time to win. Cumulative counts every item of that tier ever produced. Simultaneous counts items on the board right now. Same-sphere decorations pass only when a merge leaves every listed decoration on the result. A drop cannot complete it, and later merges do not undo it.",
+            "Every objective must hold at the same time to win. Cumulative counts every item of that tier ever produced. Simultaneous counts items on the board right now. Hair can restrict those counts, and a same-sphere objective, to hairy or bare blobs. Any size counts every tier, so a mission can require a number of hairy blobs no matter how large they are. Same-sphere decorations pass only when a merge leaves every listed decoration on the result. A drop cannot complete it, and later merges do not undo it.",
             MessageType.None);
 
         EnsureObjectiveList(author);
@@ -185,7 +342,7 @@ public class LevelAuthorEditor : Editor
     {
         EditorGUILayout.LabelField("Playfield Shape", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
-            "Drag yellow points in the Scene view. Ctrl-click a segment to insert a point. Shift-click a point to delete it. Mirror X authors the left half only.",
+            "Drag yellow points in the Scene view. Ctrl-click a segment to insert a point. Shift-click a point to delete it. Mirror X authors the left half only. Drag the Spawn and Death handles to set those heights, then bake.",
             MessageType.None);
 
         EditorGUILayout.PropertyField(shapeProperty);
@@ -278,7 +435,11 @@ public class LevelAuthorEditor : Editor
             {
                 bool isCurrent = entry == level;
                 GUIStyle style = isCurrent ? EditorStyles.boldLabel : EditorStyles.label;
-                EditorGUILayout.LabelField($"{i + 1}. {(entry != null ? entry.DisplayName : "(missing)")}", style);
+                string entryName = entry != null ? entry.DisplayName : "(missing)";
+                if (GUILayout.Button(new GUIContent($"{i + 1}. {entryName}", "Load this level's geometry and goals"), style))
+                {
+                    OpenLevel(author, entry);
+                }
                 using (new EditorGUI.DisabledScope(i == 0))
                 {
                     if (GUILayout.Button("Up", GUILayout.Width(40f)))
@@ -358,6 +519,7 @@ public class LevelAuthorEditor : Editor
                 added.FindPropertyRelative("tierIndex").intValue = 2;
                 added.FindPropertyRelative("requiredCount").intValue = 1;
                 added.FindPropertyRelative("descriptionOverride").stringValue = string.Empty;
+                added.FindPropertyRelative("hairRequirement").enumValueIndex = (int)ObjectiveHairRequirement.Either;
                 added.FindPropertyRelative("requiredDecorations").ClearArray();
             }
         };
@@ -368,11 +530,15 @@ public class LevelAuthorEditor : Editor
         float line = EditorGUIUtility.singleLineHeight + 2f;
         SerializedProperty objective = objectiveList.serializedProperty.GetArrayElementAtIndex(index);
         int type = objective.FindPropertyRelative("objectiveType").enumValueIndex;
-        int rows = 5;
-        if (type == (int)LevelObjectiveType.SameSphereDecorations)
+        int rows = 6;
+        if (type == (int)LevelObjectiveType.ScoreAtLeast)
+        {
+            rows = 5;
+        }
+        else if (type == (int)LevelObjectiveType.SameSphereDecorations)
         {
             int decorationCount = objective.FindPropertyRelative("requiredDecorations").arraySize;
-            rows = 4 + decorationCount;
+            rows = 5 + decorationCount;
         }
 
         return (line * rows) + 6f;
@@ -418,13 +584,15 @@ public class LevelAuthorEditor : Editor
             MergeItemTierTable table = ResolveTierTable(author);
             if (table != null && table.Tiers != null && table.Tiers.Count > 0)
             {
-                string[] names = new string[table.Tiers.Count];
-                int[] values = new int[table.Tiers.Count];
+                string[] names = new string[table.Tiers.Count + 1];
+                int[] values = new int[table.Tiers.Count + 1];
+                names[0] = "Any size";
+                values[0] = -1;
                 for (int i = 0; i < table.Tiers.Count; i++)
                 {
                     MergeItemTier tier = table.Tiers[i];
-                    names[i] = tier != null ? $"{i}: {tier.DisplayName}" : $"{i}: (missing)";
-                    values[i] = i;
+                    names[i + 1] = tier != null ? $"{i}: {tier.DisplayName}" : $"{i}: (missing)";
+                    values[i + 1] = i;
                 }
 
                 tierProperty.intValue = EditorGUI.IntPopup(LineRect(), "Tier", tierProperty.intValue, names, values);
@@ -435,6 +603,11 @@ public class LevelAuthorEditor : Editor
             }
 
             requiredProperty.intValue = Mathf.Max(1, EditorGUI.IntField(LineRect(), "Required Count", requiredProperty.intValue));
+        }
+
+        if (!isScore)
+        {
+            DrawHairPopup(LineRect(), objective);
         }
 
         EditorGUI.PropertyField(LineRect(), overrideProperty, new GUIContent("Label Override"));
@@ -448,6 +621,7 @@ public class LevelAuthorEditor : Editor
         System.Func<Rect> lineRect)
     {
         requiredProperty.intValue = Mathf.Max(1, EditorGUI.IntField(lineRect(), "Merges Required", requiredProperty.intValue));
+        DrawHairPopup(lineRect(), objective);
 
         SerializedProperty decorations = objective.FindPropertyRelative("requiredDecorations");
         for (int i = 0; i < decorations.arraySize; i++)
@@ -504,6 +678,14 @@ public class LevelAuthorEditor : Editor
         indexProperty.intValue = EditorGUI.IntPopup(rect, indexProperty.intValue, names, values);
     }
 
+    private static readonly string[] HairOptionNames = { "Either", "Hairy", "Not hairy" };
+
+    private static void DrawHairPopup(Rect rect, SerializedProperty objective)
+    {
+        SerializedProperty hairProperty = objective.FindPropertyRelative("hairRequirement");
+        hairProperty.enumValueIndex = EditorGUI.Popup(rect, "Hair", hairProperty.enumValueIndex, HairOptionNames);
+    }
+
     private MergeItemTierTable ResolveTierTable(LevelAuthor author)
     {
         if (author.Level != null && author.Level.TierTableOverride != null)
@@ -536,20 +718,270 @@ public class LevelAuthorEditor : Editor
     private void SyncShapeFromLevel()
     {
         LevelDefinition level = levelProperty.objectReferenceValue as LevelDefinition;
+        if (level == loadedLevel)
+        {
+            if (level == null)
+            {
+                return;
+            }
+
+            if (shapeProperty.objectReferenceValue == null && level.ShapeDefinition != null)
+            {
+                shapeProperty.objectReferenceValue = level.ShapeDefinition;
+            }
+
+            if (bakeTargetProperty.objectReferenceValue == null && level.ShapePrefab != null)
+            {
+                bakeTargetProperty.objectReferenceValue = level.ShapePrefab;
+            }
+
+            return;
+        }
+
+        shapeProperty.objectReferenceValue = level != null ? level.ShapeDefinition : null;
+        bakeTargetProperty.objectReferenceValue = level != null ? level.ShapePrefab : null;
+        loadedLevel = level;
+        pendingGeometryInstall = level != null;
+        DisposeShapeEditor();
+        objectiveList = null;
+        if (levelSerialized != null)
+        {
+            levelSerialized.Dispose();
+            levelSerialized = null;
+        }
+    }
+
+    private void OpenLevel(LevelAuthor author, LevelDefinition level)
+    {
+        if (level == null || level == loadedLevel)
+        {
+            return;
+        }
+
+        serializedObject.Update();
+        levelProperty.objectReferenceValue = level;
+        shapeProperty.objectReferenceValue = level.ShapeDefinition;
+        bakeTargetProperty.objectReferenceValue = level.ShapePrefab;
+        serializedObject.ApplyModifiedProperties();
+        FinishLevelSwap(author, level);
+        GUIUtility.ExitGUI();
+    }
+
+    private void SaveCurrentLevel(LevelAuthor author)
+    {
+        LevelDefinition level = author.Level;
         if (level == null)
         {
             return;
         }
 
-        if (shapeProperty.objectReferenceValue == null && level.ShapeDefinition != null)
+        BindLevelSerialized();
+        levelSerialized.Update();
+        levelSerialized.ApplyModifiedProperties();
+
+        PlayfieldShapeDefinition shape = author.ShapeDefinition;
+        GameObject baked = null;
+        if (shape != null)
         {
-            shapeProperty.objectReferenceValue = level.ShapeDefinition;
+            baked = PlayfieldShapeAuthoringGui.Bake(shape, author.BakeTargetPrefab);
+            EditorUtility.SetDirty(shape);
         }
 
-        if (bakeTargetProperty.objectReferenceValue == null && level.ShapePrefab != null)
+        levelSerialized.Update();
+        levelSerialized.FindProperty("shapeDefinition").objectReferenceValue = shape;
+        if (baked != null)
         {
-            bakeTargetProperty.objectReferenceValue = level.ShapePrefab;
+            levelSerialized.FindProperty("shapePrefab").objectReferenceValue = baked;
         }
+
+        levelSerialized.ApplyModifiedProperties();
+        EditorUtility.SetDirty(level);
+
+        serializedObject.Update();
+        shapeProperty.objectReferenceValue = shape;
+        if (baked != null)
+        {
+            bakeTargetProperty.objectReferenceValue = baked;
+        }
+
+        serializedObject.ApplyModifiedProperties();
+        loadedLevel = level;
+        AssetDatabase.SaveAssets();
+
+        if (baked != null)
+        {
+            InstallGeometry(author, baked);
+        }
+        else if (shape != null)
+        {
+            Debug.LogWarning($"{level.DisplayName}: goals were saved. The curve has errors, so the playfield geometry was not baked.", level);
+        }
+
+        GUIUtility.ExitGUI();
+    }
+
+    private void LoadCurrentLevel(LevelAuthor author)
+    {
+        LevelDefinition level = author.Level;
+        if (level == null)
+        {
+            return;
+        }
+
+        if (levelSerialized != null)
+        {
+            levelSerialized.Dispose();
+            levelSerialized = null;
+        }
+
+        objectiveList = null;
+        RevertAssetToSaved(level);
+        RevertAssetToSaved(level.ShapeDefinition);
+
+        serializedObject.Update();
+        levelProperty.objectReferenceValue = level;
+        shapeProperty.objectReferenceValue = level.ShapeDefinition;
+        bakeTargetProperty.objectReferenceValue = level.ShapePrefab;
+        serializedObject.ApplyModifiedProperties();
+        FinishLevelSwap(author, level);
+        GUIUtility.ExitGUI();
+    }
+
+    private void FinishLevelSwap(LevelAuthor author, LevelDefinition level)
+    {
+        loadedLevel = level;
+        pendingGeometryInstall = false;
+        renameSource = null;
+        DisposeShapeEditor();
+        objectiveList = null;
+        if (levelSerialized != null)
+        {
+            levelSerialized.Dispose();
+            levelSerialized = null;
+        }
+
+        BindLevelSerialized();
+        InstallGeometry(author, level != null ? level.ShapePrefab : null);
+    }
+
+    private static void InstallGeometry(LevelAuthor author, GameObject prefab)
+    {
+        if (prefab != null && author.ShapeHost != null)
+        {
+            PlayfieldShapeAuthoringGui.Install(prefab, author.ShapeHost, author);
+        }
+
+        SceneView.RepaintAll();
+    }
+
+    private static void RevertAssetToSaved(UnityEngine.Object asset)
+    {
+        if (asset == null)
+        {
+            return;
+        }
+
+        string path = AssetDatabase.GetAssetPath(asset);
+        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+        {
+            return;
+        }
+
+        string directory = Path.GetDirectoryName(path)?.Replace("\\", "/");
+        string tempPath = $"{directory}/__level_reload_tmp{Path.GetExtension(path)}";
+        if (AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(tempPath) != null)
+        {
+            AssetDatabase.DeleteAsset(tempPath);
+        }
+
+        File.Copy(path, tempPath, true);
+        try
+        {
+            AssetDatabase.ImportAsset(tempPath, ImportAssetOptions.ForceSynchronousImport);
+            UnityEngine.Object fresh = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(tempPath);
+            if (fresh == null)
+            {
+                return;
+            }
+
+            Undo.RecordObject(asset, "Load Level Geometry and Goals");
+            EditorUtility.CopySerialized(fresh, asset);
+            EditorUtility.ClearDirty(asset);
+        }
+        finally
+        {
+            if (AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(tempPath) != null)
+            {
+                AssetDatabase.DeleteAsset(tempPath);
+            }
+            else if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+                string metaPath = tempPath + ".meta";
+                if (File.Exists(metaPath))
+                {
+                    File.Delete(metaPath);
+                }
+            }
+        }
+    }
+
+    private static List<LevelDefinition> CollectSwitchableLevels(LevelSequence sequence)
+    {
+        List<LevelDefinition> levels = new List<LevelDefinition>();
+        if (sequence != null)
+        {
+            for (int i = 0; i < sequence.Count; i++)
+            {
+                LevelDefinition level = sequence.GetLevel(i);
+                if (level != null && !levels.Contains(level))
+                {
+                    levels.Add(level);
+                }
+            }
+        }
+
+        string[] guids = AssetDatabase.FindAssets("t:LevelDefinition");
+        List<LevelDefinition> extras = new List<LevelDefinition>();
+        for (int i = 0; i < guids.Length; i++)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+            LevelDefinition level = AssetDatabase.LoadAssetAtPath<LevelDefinition>(path);
+            if (level != null && !levels.Contains(level))
+            {
+                extras.Add(level);
+            }
+        }
+
+        extras.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName, System.StringComparison.OrdinalIgnoreCase));
+        levels.AddRange(extras);
+        return levels;
+    }
+
+    private static string FormatLevelChoice(LevelDefinition level, IReadOnlyList<LevelDefinition> levels)
+    {
+        if (level == null)
+        {
+            return "(missing)";
+        }
+
+        string display = string.IsNullOrEmpty(level.DisplayName) ? level.name : level.DisplayName;
+        int shares = 0;
+        for (int i = 0; i < levels.Count; i++)
+        {
+            LevelDefinition other = levels[i];
+            if (other != null && other.DisplayName == level.DisplayName)
+            {
+                shares++;
+            }
+        }
+
+        if (shares > 1)
+        {
+            display += $" ({level.name})";
+        }
+
+        return display;
     }
 
     private void AssignBakedPrefab(LevelAuthor author, GameObject prefab)
@@ -595,7 +1027,7 @@ public class LevelAuthorEditor : Editor
         created.FindProperty("shapeDefinition").objectReferenceValue = shape;
         created.FindProperty("initialSpawnableTierCount").intValue = 2;
         created.FindProperty("maxSpawnableTierCount").intValue = 4;
-        created.FindProperty("victorySettleTimeout").floatValue = 3f;
+        created.FindProperty("victorySettleTimeout").floatValue = 5f;
         SerializedProperty objectives = created.FindProperty("objectives");
         objectives.arraySize = 1;
         SerializedProperty first = objectives.GetArrayElementAtIndex(0);
@@ -655,6 +1087,7 @@ public class LevelAuthorEditor : Editor
             copy.FindProperty("shapeDefinition").objectReferenceValue = destShape;
             copy.FindProperty("shapePrefab").objectReferenceValue = null;
             copy.ApplyModifiedPropertiesWithoutUndo();
+            destLevel.name = Path.GetFileNameWithoutExtension(AssetDatabase.GetAssetPath(destLevel));
             EditorUtility.SetDirty(destLevel);
         }
 

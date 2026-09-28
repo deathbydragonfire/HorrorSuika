@@ -8,11 +8,13 @@ public readonly struct MergeItemDecorationPlacement
 {
     public readonly int DefinitionIndex;
     public readonly Vector3 WorldDirection;
+    public readonly int VariantIndex;
 
-    public MergeItemDecorationPlacement(int definitionIndex, Vector3 worldDirection)
+    public MergeItemDecorationPlacement(int definitionIndex, Vector3 worldDirection, int variantIndex)
     {
         DefinitionIndex = definitionIndex;
         WorldDirection = worldDirection;
+        VariantIndex = variantIndex;
     }
 }
 
@@ -56,6 +58,7 @@ public class MergeItemDecorations : MonoBehaviour
     private readonly List<Vector3> pendingDirections = new List<Vector3>(16);
     private readonly List<float> pendingRadii = new List<float>(16);
     private readonly List<bool> pendingAnchored = new List<bool>(16);
+    private readonly List<int> pendingVariantIndices = new List<int>(16);
 
     private Transform decorationRoot;
     private MergeItem mergeItem;
@@ -65,6 +68,7 @@ public class MergeItemDecorations : MonoBehaviour
     private struct ActiveDecoration
     {
         public int DefinitionIndex;
+        public int VariantIndex;
         public Transform Transform;
     }
 
@@ -121,7 +125,7 @@ public class MergeItemDecorations : MonoBehaviour
                 continue;
             }
 
-            AddPending(i, facing, definition);
+            AddPending(i, facing, definition, RollVariant(definition.Prefab));
         }
 
         if (pendingDefinitionIndices.Count == 0)
@@ -150,7 +154,10 @@ public class MergeItemDecorations : MonoBehaviour
                 }
             }
 
-            placements[i] = new MergeItemDecorationPlacement(spawned[i].DefinitionIndex, worldDir);
+            placements[i] = new MergeItemDecorationPlacement(
+                spawned[i].DefinitionIndex,
+                worldDir,
+                spawned[i].VariantIndex);
         }
 
         return new MergeItemDecorationLayout(placements);
@@ -229,7 +236,7 @@ public class MergeItemDecorations : MonoBehaviour
                 local = ResolveFacingLocal();
             }
 
-            AddPending(placement.DefinitionIndex, local.normalized, definition);
+            AddPending(placement.DefinitionIndex, local.normalized, definition, placement.VariantIndex);
         }
     }
 
@@ -245,14 +252,36 @@ public class MergeItemDecorations : MonoBehaviour
         pendingDirections.Clear();
         pendingRadii.Clear();
         pendingAnchored.Clear();
+        pendingVariantIndices.Clear();
     }
 
-    private void AddPending(int definitionIndex, Vector3 direction, MergeItemDecorationDefinition definition)
+    private void AddPending(
+        int definitionIndex,
+        Vector3 direction,
+        MergeItemDecorationDefinition definition,
+        int variantIndex)
     {
         pendingDefinitionIndices.Add(definitionIndex);
         pendingDirections.Add(direction);
         pendingRadii.Add(definition.WorldRadius);
         pendingAnchored.Add(definition.AnchorToCenter);
+        pendingVariantIndices.Add(variantIndex);
+    }
+
+    private static int RollVariant(GameObject prefab)
+    {
+        if (prefab == null)
+        {
+            return 0;
+        }
+
+        EyeballVariant variant = prefab.GetComponent<EyeballVariant>();
+        if (variant == null || variant.OptionCount == 0)
+        {
+            return 0;
+        }
+
+        return variant.RollIndex();
     }
 
     private bool HasPendingDefinition(int definitionIndex)
@@ -289,9 +318,11 @@ public class MergeItemDecorations : MonoBehaviour
 
             Vector3 compensatedScale = definition.ScaleWithItem ? Vector3.one : Vector3.one / itemScale;
             PlaceDecoration(instance.transform, definition, pendingDirections[i].normalized, facing, compensatedScale);
+            int variantIndex = ApplyVariant(instance, pendingVariantIndices[i]);
             spawned.Add(new ActiveDecoration
             {
                 DefinitionIndex = definitionIndex,
+                VariantIndex = variantIndex,
                 Transform = instance.transform
             });
         }
@@ -332,6 +363,26 @@ public class MergeItemDecorations : MonoBehaviour
         {
             ApplyHostMaterial(decoration, skinnedMeshes: false);
         }
+    }
+
+    /// <summary>
+    /// Restores an eye's sphere mesh when this decoration has variants. Other decorations stay unchanged.
+    /// </summary>
+    private static int ApplyVariant(GameObject instance, int variantIndex)
+    {
+        if (instance == null)
+        {
+            return 0;
+        }
+
+        EyeballVariant variant = instance.GetComponent<EyeballVariant>();
+        if (variant == null || variant.OptionCount == 0)
+        {
+            return 0;
+        }
+
+        variant.Apply(variantIndex);
+        return variant.CurrentIndex;
     }
 
     private void ApplyHostMaterial(Transform decoration, bool skinnedMeshes)

@@ -43,8 +43,8 @@ public class LevelDefinition : ScriptableObject
     [Tooltip("Seed for the drop sequence. 0 means non-deterministic.")]
     [SerializeField] private int randomSeed;
 
-    [Tooltip("How long the board is allowed to keep settling after the last objective completes.")]
-    [SerializeField] private float victorySettleTimeout = 3f;
+    [Tooltip("How long the board must stay settled, with no merges, before the level is won.")]
+    [SerializeField] private float victorySettleTimeout = 5f;
 
     /// <summary>Stable save key for this level.</summary>
     public string LevelId => levelId;
@@ -73,7 +73,7 @@ public class LevelDefinition : ScriptableObject
     /// <summary>Seed for the drop sequence; 0 means non-deterministic.</summary>
     public int RandomSeed => randomSeed;
 
-    /// <summary>How long the board may keep settling after the last objective completes.</summary>
+    /// <summary>How long the board must stay settled, with no merges, before the level is won.</summary>
     public float VictorySettleTimeout => Mathf.Max(MinimumVictorySettleTimeout, victorySettleTimeout);
 
     /// <summary>Authored starting spawnable-tier count; 0 means use the resolved table.</summary>
@@ -137,9 +137,14 @@ public class LevelDefinition : ScriptableObject
             {
                 LevelObjective objective = objectives[i];
                 objective?.ClampValues(maxTierIndex, maxDecorationIndex);
+                bool hasDecorations = objective != null
+                    && objective.RequiredDecorations != null
+                    && objective.RequiredDecorations.Count > 0;
+                bool requiresHair = objective != null && objective.HairRequirement != ObjectiveHairRequirement.Either;
                 if (objective != null
                     && objective.ObjectiveType == LevelObjectiveType.SameSphereDecorations
-                    && (objective.RequiredDecorations == null || objective.RequiredDecorations.Count == 0))
+                    && !hasDecorations
+                    && !requiresHair)
                 {
                     Debug.LogWarning($"{name}: a same-sphere objective lists no decorations and can therefore never be won.", this);
                 }

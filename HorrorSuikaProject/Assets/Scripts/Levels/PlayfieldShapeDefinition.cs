@@ -42,10 +42,10 @@ public class PlayfieldShapeDefinition : ScriptableObject
     [Tooltip("Thickness of the container along Z.")]
     [SerializeField] private float extrudeDepth = 1f;
 
-    [Tooltip("World Y of the overflow line for this shape.")]
+    [Tooltip("World Y of the death line. A sphere that keeps touching this line, or sitting above it, loses the game.")]
     [SerializeField] private float deathLineY = 6f;
 
-    [Tooltip("World Y the held item hovers at for this shape.")]
+    [Tooltip("World Y where the next item spawns and hovers before it is dropped.")]
     [SerializeField] private float dropY = 7f;
 
     /// <summary>Interior boundary control points, in authoring order.</summary>
@@ -66,11 +66,23 @@ public class PlayfieldShapeDefinition : ScriptableObject
     /// <summary>Container thickness along Z.</summary>
     public float ExtrudeDepth => Mathf.Max(MinExtrudeDepth, extrudeDepth);
 
-    /// <summary>World Y of the overflow line.</summary>
+    /// <summary>World Y of the death line.</summary>
     public float DeathLineY => deathLineY;
 
-    /// <summary>World Y the held item hovers at.</summary>
+    /// <summary>World Y where the next item spawns and hovers.</summary>
     public float DropY => dropY;
+
+    /// <summary>Sets the death line height. The authoring tool calls this; play mode reads the baked shape.</summary>
+    public void SetDeathLineY(float value)
+    {
+        deathLineY = value;
+    }
+
+    /// <summary>Sets the spawn height. The authoring tool calls this; play mode reads the baked shape.</summary>
+    public void SetDropY(float value)
+    {
+        dropY = value;
+    }
 
     /// <summary>
     /// Smooths the control points with a Catmull-Rom spline (endpoints duplicated so the first and

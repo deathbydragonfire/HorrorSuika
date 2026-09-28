@@ -95,7 +95,7 @@ MonoBehaviour:
   topTierPopScore: 100
   topTierMergePops: 1
   decorations:
-  - displayName: Human Eyeball
+  - displayName: Eyeball
     prefab: {fileID: 3283533217541906186, guid: 140cda0b8a8ba9a4b92349a268e0e3e4, type: 3}
     dropChance: 0.7
     minDropTierIndex: 0
@@ -137,6 +137,10 @@ MonoBehaviour:
     randomRollDegrees: 15
     applyHostMaterialToSkinnedMeshes: 1
     applyHostMaterialToMeshRenderers: 1
+  hairChance: 0.4
+  minRolledHairiness: 0.75
+  maxRolledHairiness: 1
+  minimumHairiness: 0.2
   pulse:
     enabled: 1
     amplitude: 0

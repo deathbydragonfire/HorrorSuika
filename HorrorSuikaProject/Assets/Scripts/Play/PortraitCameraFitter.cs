@@ -38,6 +38,14 @@ public class PortraitCameraFitter : MonoBehaviour
         Fit();
     }
 
+    /// <summary>Fits again even when the screen size has not changed. Used after a HUD inset.</summary>
+    public void Refit()
+    {
+        cachedScreenWidth = -1;
+        cachedScreenHeight = -1;
+        Fit();
+    }
+
     private void Awake()
     {
         targetCamera = GetComponent<Camera>();
@@ -78,7 +86,16 @@ public class PortraitCameraFitter : MonoBehaviour
             return;
         }
 
-        float aspect = (float)width / height;
+        // Prefer the camera viewport so a top or side HUD inset still frames the whole container.
+        int viewWidth = targetCamera.pixelWidth;
+        int viewHeight = targetCamera.pixelHeight;
+        if (viewWidth <= 0 || viewHeight <= 0)
+        {
+            viewWidth = width;
+            viewHeight = height;
+        }
+
+        float aspect = (float)viewWidth / viewHeight;
         if (aspect <= 0f)
         {
             return;

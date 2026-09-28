@@ -18,21 +18,29 @@ MonoBehaviour:
   shapePrefab: {fileID: 1017664861694311850, guid: c2bde8dce47b09140a971ee6c8d9ea61, type: 3}
   shapeDefinition: {fileID: 11400000, guid: bb9342d52c40fbe4f82ca9fa10018785, type: 2}
   objectives:
+  - objectiveType: 0
+    countMode: 0
+    tierIndex: -1
+    requiredCount: 20
+    requiredDecorations: []
+    hairRequirement: 1
+    descriptionOverride: 
   - objectiveType: 2
     countMode: 0
-    tierIndex: 0
+    tierIndex: -1
     requiredCount: 1
     requiredDecorations:
-    - decorationIndex: 2
-      requiredCount: 1
     - decorationIndex: 0
+      requiredCount: 1
+    - decorationIndex: 2
       requiredCount: 1
     - decorationIndex: 1
       requiredCount: 1
+    hairRequirement: 0
     descriptionOverride: 
   initialSpawnableTierCount: 2
   maxSpawnableTierCount: 7
   dropLimit: 0
   timeLimitSeconds: 0
   randomSeed: 0
-  victorySettleTimeout: 3
+  victorySettleTimeout: 5

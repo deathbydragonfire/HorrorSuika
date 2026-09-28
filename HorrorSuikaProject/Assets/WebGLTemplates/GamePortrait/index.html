@@ -23,7 +23,10 @@
       }
       #unity-container {
         position: absolute;
-        inset: 0;
+        left: env(safe-area-inset-left, 0px);
+        right: env(safe-area-inset-right, 0px);
+        top: env(safe-area-inset-top, 0px);
+        bottom: env(safe-area-inset-bottom, 0px);
       }
       #unity-canvas {
         width: 100%;
@@ -89,6 +92,18 @@
       // Kill the Android long-press context menu, which otherwise interrupts a drag.
       canvas.addEventListener("contextmenu", function (event) { event.preventDefault(); });
 
+      // itch.io embeds the game in an iframe. A click must focus the canvas or keyboard
+      // input never arrives, and Space / arrows otherwise scroll the parent page.
+      function focusCanvas() { canvas.focus(); }
+      canvas.addEventListener("pointerdown", focusCanvas);
+      canvas.addEventListener("touchstart", focusCanvas, { passive: true });
+      var blockPageKeys = { Space: 1, ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1 };
+      window.addEventListener("keydown", function (event) {
+        if (blockPageKeys[event.code]) {
+          event.preventDefault();
+        }
+      });
+
       function unityShowBanner(msg, type) {
         function updateBannerVisibility() {
           warningBanner.style.display = warningBanner.children.length ? "block" : "none";
@@ -127,6 +142,11 @@
         productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
         productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
         showBanner: unityShowBanner,
+        // Cap retina and phone canvases. The flesh raymarch fills every covered pixel,
+        // and a 3x itch embed will lose the WebGL context.
+        devicePixelRatio: (window.matchMedia && window.matchMedia("(pointer: coarse)").matches)
+          ? Math.min(window.devicePixelRatio || 1, 1.25)
+          : Math.min(window.devicePixelRatio || 1, 2)
       };
 
       loadingBar.style.display = "block";
@@ -139,7 +159,7 @@
         }).then(function (unityInstance) {
           loadingBar.style.display = "none";
         }).catch(function (message) {
-          alert(message);
+          unityShowBanner(String(message), "error");
         });
       };
       document.body.appendChild(script);

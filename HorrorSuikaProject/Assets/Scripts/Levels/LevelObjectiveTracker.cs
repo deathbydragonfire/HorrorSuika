@@ -4,8 +4,8 @@ using UnityEngine;
 
 /// <summary>
 /// Evaluates the active level's objectives and announces progress and completion. Polls in
-/// FixedUpdate like <see cref="GameOverWatcher"/> and latches completion so a win cannot be lost
-/// once every condition has held simultaneously for one step.
+/// FixedUpdate like <see cref="GameOverWatcher"/>. Completion latches until a merge during the
+/// victory wait drops an objective, which revokes it so play can continue.
 /// </summary>
 public class LevelObjectiveTracker : MonoBehaviour
 {
@@ -17,22 +17,39 @@ public class LevelObjectiveTracker : MonoBehaviour
         public readonly int Required;
         public readonly bool IsComplete;
         public readonly string Label;
+        public readonly bool IsOnOne;
+        public readonly string[] Parts;
+        public readonly bool[] PartMet;
 
-        public ObjectiveProgress(int index, int current, int required, bool isComplete, string label)
+        public ObjectiveProgress(
+            int index,
+            int current,
+            int required,
+            bool isComplete,
+            string label,
+            bool isOnOne,
+            string[] parts,
+            bool[] partMet)
         {
             Index = index;
             Current = current;
             Required = required;
             IsComplete = isComplete;
             Label = label;
+            IsOnOne = isOnOne;
+            Parts = parts;
+            PartMet = partMet;
         }
     }
 
     private readonly List<ObjectiveProgress> progress = new List<ObjectiveProgress>();
     private readonly List<int> cumulativeCountsByTier = new List<int>();
+    private readonly List<int> cumulativeHairyCountsByTier = new List<int>();
     private readonly List<int> sameSphereCounts = new List<int>();
     private readonly HashSet<int> reportedBadTierIndices = new HashSet<int>();
     private readonly HashSet<int> reportedBadDecorationIndices = new HashSet<int>();
+    private readonly List<bool> scratchMarks = new List<bool>();
+    private readonly List<bool> bestMarks = new List<bool>();
     private bool reportedEmptyDecorationObjective;
 
     private MergeItemPool itemPool;
@@ -89,9 +106,11 @@ public class LevelObjectiveTracker : MonoBehaviour
 
         int tierCount = table != null ? table.MaxTierIndex + 1 : 0;
         cumulativeCountsByTier.Clear();
+        cumulativeHairyCountsByTier.Clear();
         for (int i = 0; i < tierCount; i++)
         {
             cumulativeCountsByTier.Add(0);
+            cumulativeHairyCountsByTier.Add(0);
         }
 
         sameSphereCounts.Clear();
@@ -102,8 +121,10 @@ public class LevelObjectiveTracker : MonoBehaviour
         {
             LevelObjective objective = objectives[i];
             int required = objective != null ? objective.RequiredCount : 1;
-            string label = objective != null ? objective.BuildLabel(table) : "(missing objective)";
-            progress.Add(new ObjectiveProgress(i, 0, required, false, label));
+            string label = objective != null ? objective.BuildTicketCategory(table) : "(missing objective)";
+            bool isOnOne = objective != null && objective.IsOnOneGoal;
+            string[] parts = objective != null ? objective.BuildOnOneParts(table) : null;
+            progress.Add(new ObjectiveProgress(i, 0, required, false, label, isOnOne, parts, null));
             sameSphereCounts.Add(0);
             ProgressChanged?.Invoke(progress[i]);
         }
@@ -113,6 +134,35 @@ public class LevelObjectiveTracker : MonoBehaviour
     public void SetActive(bool active)
     {
         isActive = active;
+    }
+
+    /// <summary>True when every objective currently holds, including during a pending victory.</summary>
+    public bool AreObjectivesSatisfied()
+    {
+        if (level == null || progress.Count == 0)
+        {
+            return false;
+        }
+
+        IReadOnlyList<LevelObjective> objectives = level.Objectives;
+        for (int i = 0; i < progress.Count; i++)
+        {
+            LevelObjective objective = objectives != null && i < objectives.Count ? objectives[i] : null;
+            int current = EvaluateObjective(objective, i);
+            if (objective == null || current < progress[i].Required)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Drops a latched victory so play can continue after a merge changed the board.</summary>
+    public void RevokeCompletion()
+    {
+        hasCompleted = false;
+        isActive = true;
     }
 
     private void OnDestroy()
@@ -135,7 +185,7 @@ public class LevelObjectiveTracker : MonoBehaviour
 
     private void OnMergePerformed(MergeItem result, int resultTierIndex, Vector3 position, int awardedScore)
     {
-        AddCumulative(resultTierIndex);
+        AddCumulative(result);
         CountSameSphereMerge(result);
     }
 
@@ -143,25 +193,32 @@ public class LevelObjectiveTracker : MonoBehaviour
     {
         // Directly-dropped low tiers never pass through MergePerformed, so a cumulative objective on
         // tier 0 or 1 would otherwise never advance.
-        if (item != null)
-        {
-            AddCumulative(item.TierIndex);
-        }
+        AddCumulative(item);
     }
 
-    private void AddCumulative(int tierIndex)
+    private void AddCumulative(MergeItem item)
     {
+        if (item == null)
+        {
+            return;
+        }
+
+        int tierIndex = item.TierIndex;
         if (tierIndex < 0 || tierIndex >= cumulativeCountsByTier.Count)
         {
             return;
         }
 
         cumulativeCountsByTier[tierIndex]++;
+        if (item.IsHairy)
+        {
+            cumulativeHairyCountsByTier[tierIndex]++;
+        }
     }
 
     private void FixedUpdate()
     {
-        if (!isActive || hasCompleted || level == null || progress.Count == 0)
+        if (!isActive || level == null || progress.Count == 0)
         {
             return;
         }
@@ -181,12 +238,27 @@ public class LevelObjectiveTracker : MonoBehaviour
                 allComplete = false;
             }
 
-            if (progress[i].Current == current && progress[i].IsComplete == isComplete)
+            WritePartMarks(objective, isComplete);
+            bool[] partMet = progress[i].PartMet;
+            if (!MarksEqual(partMet, bestMarks))
+            {
+                partMet = bestMarks.Count > 0 ? bestMarks.ToArray() : null;
+            }
+
+            if (progress[i].Current == current && progress[i].IsComplete == isComplete && MarksEqual(progress[i].PartMet, bestMarks))
             {
                 continue;
             }
 
-            progress[i] = new ObjectiveProgress(i, current, required, isComplete, progress[i].Label);
+            progress[i] = new ObjectiveProgress(
+                i,
+                current,
+                required,
+                isComplete,
+                progress[i].Label,
+                progress[i].IsOnOne,
+                progress[i].Parts,
+                partMet);
             ProgressChanged?.Invoke(progress[i]);
         }
 
@@ -195,8 +267,12 @@ public class LevelObjectiveTracker : MonoBehaviour
             return;
         }
 
+        if (hasCompleted)
+        {
+            return;
+        }
+
         hasCompleted = true;
-        isActive = false;
         AllObjectivesComplete?.Invoke();
     }
 
@@ -218,7 +294,8 @@ public class LevelObjectiveTracker : MonoBehaviour
         }
 
         int tierIndex = objective.TierIndex;
-        if (tierIndex < 0 || tierIndex >= cumulativeCountsByTier.Count)
+        bool anySize = tierIndex < 0;
+        if (!anySize && tierIndex >= cumulativeCountsByTier.Count)
         {
             if (reportedBadTierIndices.Add(tierIndex))
             {
@@ -233,13 +310,170 @@ public class LevelObjectiveTracker : MonoBehaviour
 
         if (objective.CountMode == ObjectiveCountMode.Cumulative)
         {
-            return cumulativeCountsByTier[tierIndex];
+            return CountProduced(tierIndex, objective.HairRequirement);
         }
 
-        return CountSimultaneous(tierIndex);
+        return CountSimultaneous(tierIndex, objective.HairRequirement);
     }
 
-    private int CountSimultaneous(int tierIndex)
+    private void WritePartMarks(LevelObjective objective, bool objectiveComplete)
+    {
+        bestMarks.Clear();
+        if (objective == null || !objective.IsOnOneGoal)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(objective.DescriptionOverride) || !HasIndividualFeatures(objective))
+        {
+            bestMarks.Add(objectiveComplete);
+            return;
+        }
+
+        int slots = FeatureSlotCount(objective);
+        int bestScore = -1;
+        IReadOnlyList<MergeItem> items = itemPool != null ? itemPool.ActiveItems : null;
+        MergeItem held = itemDropper != null ? itemDropper.HeldItem : null;
+        int count = items != null ? items.Count : 0;
+        for (int i = 0; i < count; i++)
+        {
+            MergeItem item = items[i];
+            if (item == null || item == held || item.IsConsumed)
+            {
+                continue;
+            }
+
+            int score = FillItemMarks(item, objective, slots);
+            if (score <= bestScore)
+            {
+                continue;
+            }
+
+            bestScore = score;
+            bestMarks.Clear();
+            for (int mark = 0; mark < scratchMarks.Count; mark++)
+            {
+                bestMarks.Add(scratchMarks[mark]);
+            }
+        }
+
+        if (bestScore < 0)
+        {
+            for (int i = 0; i < slots; i++)
+            {
+                bestMarks.Add(false);
+            }
+        }
+    }
+
+    private static bool HasIndividualFeatures(LevelObjective objective)
+    {
+        if (objective.RequiredDecorations != null && objective.RequiredDecorations.Count > 0)
+        {
+            return true;
+        }
+
+        return objective.HairRequirement == ObjectiveHairRequirement.Hairy
+            || objective.HairRequirement == ObjectiveHairRequirement.NotHairy;
+    }
+
+    private static int FeatureSlotCount(LevelObjective objective)
+    {
+        int slots = objective.RequiredDecorations != null ? objective.RequiredDecorations.Count : 0;
+        if (objective.HairRequirement == ObjectiveHairRequirement.Hairy
+            || objective.HairRequirement == ObjectiveHairRequirement.NotHairy)
+        {
+            slots++;
+        }
+
+        return Mathf.Max(1, slots);
+    }
+
+    private int FillItemMarks(MergeItem item, LevelObjective objective, int slots)
+    {
+        scratchMarks.Clear();
+        int score = 0;
+        IReadOnlyList<LevelObjectiveDecoration> required = objective.RequiredDecorations;
+        int decorationCount = required != null ? required.Count : 0;
+        for (int i = 0; i < decorationCount; i++)
+        {
+            LevelObjectiveDecoration decoration = required[i];
+            int index = decoration != null ? decoration.DecorationIndex : -1;
+            int needed = decoration != null ? Mathf.Max(1, decoration.RequiredCount) : 1;
+            bool met = index >= 0 && item.CountDecoration(index) >= needed;
+            scratchMarks.Add(met);
+            if (met)
+            {
+                score++;
+            }
+        }
+
+        if (objective.HairRequirement == ObjectiveHairRequirement.Hairy
+            || objective.HairRequirement == ObjectiveHairRequirement.NotHairy)
+        {
+            bool met = MatchesHair(item, objective.HairRequirement);
+            scratchMarks.Add(met);
+            if (met)
+            {
+                score++;
+            }
+        }
+
+        while (scratchMarks.Count < slots)
+        {
+            scratchMarks.Add(false);
+        }
+
+        return score;
+    }
+
+    private static bool MarksEqual(bool[] published, List<bool> next)
+    {
+        int publishedCount = published != null ? published.Length : 0;
+        if (publishedCount != next.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < publishedCount; i++)
+        {
+            if (published[i] != next[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private int CountProduced(int tierIndex, ObjectiveHairRequirement hairRequirement)
+    {
+        if (tierIndex < 0)
+        {
+            int total = 0;
+            for (int i = 0; i < cumulativeCountsByTier.Count; i++)
+            {
+                total += CountProduced(i, hairRequirement);
+            }
+
+            return total;
+        }
+
+        int produced = cumulativeCountsByTier[tierIndex];
+        if (hairRequirement == ObjectiveHairRequirement.Hairy)
+        {
+            return cumulativeHairyCountsByTier[tierIndex];
+        }
+
+        if (hairRequirement == ObjectiveHairRequirement.NotHairy)
+        {
+            return produced - cumulativeHairyCountsByTier[tierIndex];
+        }
+
+        return produced;
+    }
+
+    private int CountSimultaneous(int tierIndex, ObjectiveHairRequirement hairRequirement)
     {
         if (itemPool == null)
         {
@@ -247,13 +481,47 @@ public class LevelObjectiveTracker : MonoBehaviour
         }
 
         MergeItem held = itemDropper != null ? itemDropper.HeldItem : null;
-        return itemPool.CountActiveOfTier(tierIndex, held);
+        IReadOnlyList<MergeItem> items = itemPool.ActiveItems;
+        int count = 0;
+        for (int i = 0; i < items.Count; i++)
+        {
+            MergeItem item = items[i];
+            if (item == null || item == held || item.IsConsumed || (tierIndex >= 0 && item.TierIndex != tierIndex))
+            {
+                continue;
+            }
+
+            if (!MatchesHair(item, hairRequirement))
+            {
+                continue;
+            }
+
+            count++;
+        }
+
+        return count;
+    }
+
+    private static bool MatchesHair(MergeItem item, ObjectiveHairRequirement hairRequirement)
+    {
+        if (hairRequirement == ObjectiveHairRequirement.Hairy)
+        {
+            return item.IsHairy;
+        }
+
+        if (hairRequirement == ObjectiveHairRequirement.NotHairy)
+        {
+            return !item.IsHairy;
+        }
+
+        return true;
     }
 
     private int SameSphereCount(LevelObjective objective, int index)
     {
         IReadOnlyList<LevelObjectiveDecoration> required = objective.RequiredDecorations;
-        if (required == null || required.Count == 0)
+        bool hasDecorations = required != null && required.Count > 0;
+        if (!hasDecorations && objective.HairRequirement == ObjectiveHairRequirement.Either)
         {
             if (!reportedEmptyDecorationObjective)
             {
@@ -292,12 +560,18 @@ public class LevelObjectiveTracker : MonoBehaviour
             }
 
             IReadOnlyList<LevelObjectiveDecoration> required = objective.RequiredDecorations;
-            if (required == null || required.Count == 0)
+            bool hasDecorations = required != null && required.Count > 0;
+            if (!hasDecorations && objective.HairRequirement == ObjectiveHairRequirement.Either)
             {
                 continue;
             }
 
-            if (SphereHasRequiredDecorations(result, required))
+            if (hasDecorations && !SphereHasRequiredDecorations(result, required))
+            {
+                continue;
+            }
+
+            if (MatchesHair(result, objective.HairRequirement))
             {
                 sameSphereCounts[i]++;
             }
