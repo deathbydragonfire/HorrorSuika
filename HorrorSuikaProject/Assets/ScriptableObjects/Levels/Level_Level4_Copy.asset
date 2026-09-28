@@ -10,24 +10,27 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 887c97ed2d88ae542ad8deff5c05694d, type: 3}
-  m_Name: Level_Level1
+  m_Name: Level_Level4_Copy
   m_EditorClassIdentifier: Assembly-CSharp::LevelDefinition
-  levelId: level_level1_copy
-  displayName: Level1
+  levelId: level_level4_copy
+  displayName: Level5
   tierTable: {fileID: 0}
-  shapePrefab: {fileID: 1038717169968416876, guid: 5c1815b4f1f3eac4aa84b850234601b5, type: 3}
-  shapeDefinition: {fileID: 11400000, guid: ef74cc5c3c200a845aad54bf2eeaeb89, type: 2}
+  shapePrefab: {fileID: 2251463985318362377, guid: ecc0fdb81baef3648a9ae51a2e457256, type: 3}
+  shapeDefinition: {fileID: 11400000, guid: d59691a7299e6f548a541ebb1d6ffee4, type: 2}
   objectives:
-  - objectiveType: 2
+  - objectiveType: 0
     countMode: 0
     tierIndex: -1
-    requiredCount: 1
-    requiredDecorations:
-    - decorationIndex: 0
-      requiredCount: 2
-    - decorationIndex: 1
-      requiredCount: 1
-    hairRequirement: 0
+    requiredCount: 10
+    requiredDecorations: []
+    hairRequirement: 2
+    descriptionOverride: 
+  - objectiveType: 0
+    countMode: 0
+    tierIndex: -1
+    requiredCount: 10
+    requiredDecorations: []
+    hairRequirement: 1
     descriptionOverride: 
   endless: 0
   initialSpawnableTierCount: 2

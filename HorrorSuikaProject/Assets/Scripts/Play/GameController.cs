@@ -316,6 +316,18 @@ public class GameController : MonoBehaviour
         SceneFlow.LoadLevelSelect();
     }
 
+    /// <summary>Returns to the title scene.</summary>
+    public void ReturnToStart()
+    {
+        if (levelSelection != null)
+        {
+            levelSelection.Clear();
+        }
+
+        mergeCoordinator.ClearQueue();
+        SceneFlow.LoadStart();
+    }
+
     private void Update()
     {
         if (State != GameState.Playing)

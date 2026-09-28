@@ -322,13 +322,19 @@ public class LevelAuthorEditor : Editor
 
         if (levelSerialized.FindProperty("objectives").arraySize == 0)
         {
-            EditorGUILayout.HelpBox("A level with no objectives can never be won.", MessageType.Warning);
+            bool endless = levelSerialized.FindProperty("endless").boolValue;
+            EditorGUILayout.HelpBox(
+                endless
+                    ? "Endless level. There is no win; play continues until overflow or another failure limit."
+                    : "A level with no objectives can never be won.",
+                endless ? MessageType.Info : MessageType.Warning);
         }
     }
 
     private void DrawLimits()
     {
         EditorGUILayout.LabelField("Spawn and Failure", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(levelSerialized.FindProperty("endless"));
         EditorGUILayout.PropertyField(levelSerialized.FindProperty("initialSpawnableTierCount"));
         EditorGUILayout.PropertyField(levelSerialized.FindProperty("maxSpawnableTierCount"));
         EditorGUILayout.PropertyField(levelSerialized.FindProperty("dropLimit"));

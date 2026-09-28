@@ -23,13 +23,30 @@ public static class LevelProgressStore
         return IsValidId(levelId) ? PlayerPrefs.GetInt(BestScoreKeyPrefix + levelId, 0) : 0;
     }
 
-    /// <summary>Index of the highest level the player has unlocked; index 0 is always unlocked.</summary>
+    /// <summary>
+    /// Highest sequence index recorded when a level is won. The level list does not read this;
+    /// a level opens only after the previous one has been completed.
+    /// </summary>
     public static int HighestUnlockedIndex => Mathf.Max(0, PlayerPrefs.GetInt(HighestUnlockedKey, 0));
 
-    /// <summary>True when the level at this sequence index may be played.</summary>
-    public static bool IsUnlocked(int levelIndex)
+    /// <summary>
+    /// True when this sequence index may be played. The first level is always open. Every later
+    /// level stays locked until the one immediately before it has been completed.
+    /// </summary>
+    public static bool IsUnlocked(LevelSequence sequence, int levelIndex)
     {
-        return levelIndex <= 0 || levelIndex <= HighestUnlockedIndex;
+        if (levelIndex <= 0)
+        {
+            return true;
+        }
+
+        if (sequence == null)
+        {
+            return false;
+        }
+
+        LevelDefinition previous = sequence.GetLevel(levelIndex - 1);
+        return previous != null && IsCompleted(previous.LevelId);
     }
 
     /// <summary>Records a win: marks completion, raises the best score, and unlocks the next level.</summary>
@@ -74,6 +91,16 @@ public static class LevelProgressStore
         PlayerPrefs.SetInt(HighestUnlockedKey, 0);
         PlayerPrefs.Save();
     }
+
+#if UNITY_EDITOR
+    /// <summary>Editor play sessions start from a fresh save. Builds keep the player's progress.</summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void ResetProgressOnEditorPlay()
+    {
+        PlayerPrefs.DeleteAll();
+        PlayerPrefs.Save();
+    }
+#endif
 
     private static bool IsValidId(string levelId)
     {

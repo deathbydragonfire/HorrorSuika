@@ -10,18 +10,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 33adfbe689545c74a9254dab54f8d976, type: 3}
-  m_Name: Shape_Level1_Copy
+  m_Name: Shape_Level2_Copy 1
   m_EditorClassIdentifier: Assembly-CSharp::PlayfieldShapeDefinition
   outlinePoints:
-  - {x: -3.2742167, y: 10.190678}
-  - {x: -3.296468, y: 6.444273}
-  - {x: -1.9143828, y: 3.9792295}
-  - {x: -0.48637015, y: 3.9612064}
-  - {x: 0.8947864, y: 3.9826822}
-  - {x: 2.146324, y: 3.998993}
-  - {x: 2.596773, y: 4.9838324}
-  - {x: 3.2283695, y: 6.4497976}
-  - {x: 3.0075135, y: 10.363256}
+  - {x: -3.4627137, y: 10.077318}
+  - {x: -3.447373, y: 6.896984}
+  - {x: -3.4232745, y: 5.525811}
+  - {x: -1.5427244, y: 5.470336}
+  - {x: 1.0834385, y: 5.4917808}
+  - {x: 2.14622, y: 5.470124}
+  - {x: 3.0494819, y: 5.4742393}
+  - {x: 3.0397382, y: 6.8647842}
+  - {x: 3.0073938, y: 9.985796}
   subdivisionsPerSegment: 0
   maxSegmentLength: 0.25
   wallThickness: 0.25

@@ -136,15 +136,16 @@ public class LevelInfoPanelLayout : MonoBehaviour
 
     private float TicketRowsHeight()
     {
-        if (objectiveElement == null)
+        if (objectiveElement == null || !objectiveElement.gameObject.activeInHierarchy)
         {
-            return ticketRowHeight;
+            return 0f;
         }
 
+        float score = ScoreRowHeight();
         LevelObjectiveRowView[] rows = objectiveElement.GetComponentsInChildren<LevelObjectiveRowView>(false);
         if (rows.Length == 0)
         {
-            return ticketRowHeight;
+            return score > 0f ? score : ticketRowHeight;
         }
 
         float total = 0f;
@@ -154,7 +155,29 @@ public class LevelInfoPanelLayout : MonoBehaviour
             total += element != null && element.preferredHeight > 0f ? element.preferredHeight : ticketRowHeight;
         }
 
-        return total;
+        return total + score;
+    }
+
+    private float ScoreRowHeight()
+    {
+        if (objectiveElement == null)
+        {
+            return 0f;
+        }
+
+        Transform score = objectiveElement.transform.Find("ScoreLabel");
+        if (score == null || !score.gameObject.activeInHierarchy)
+        {
+            return 0f;
+        }
+
+        LayoutElement element = score.GetComponent<LayoutElement>();
+        if (element != null && element.preferredHeight > 0f)
+        {
+            return element.preferredHeight;
+        }
+
+        return ticketRowHeight;
     }
 
     private float ObjectiveSplitHeight()

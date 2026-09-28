@@ -25,8 +25,11 @@ public class LevelDefinition : ScriptableObject
     [Tooltip("Curve asset the level author edits. Editor-time only; runtime reads ShapePrefab.")]
     [SerializeField] private PlayfieldShapeDefinition shapeDefinition;
 
-    [Tooltip("Every condition that must hold for the level to be won.")]
+    [Tooltip("Every condition that must hold for the level to be won. Ignored for the win check when Endless is set.")]
     [SerializeField] private List<LevelObjective> objectives = new List<LevelObjective>();
+
+    [Tooltip("No victory conditions. Score stays on screen, and the run ends only on overflow or another failure limit.")]
+    [SerializeField] private bool endless;
 
     [Tooltip("How many tiers are droppable at the start. 0 falls back to the tier table's value.")]
     [SerializeField] private int initialSpawnableTierCount;
@@ -63,6 +66,9 @@ public class LevelDefinition : ScriptableObject
 
     /// <summary>Every condition that must hold for the level to be won.</summary>
     public IReadOnlyList<LevelObjective> Objectives => objectives;
+
+    /// <summary>True when the level has no victory conditions and is played for score until it is failed.</summary>
+    public bool IsEndless => endless;
 
     /// <summary>Maximum drops allowed; 0 means unlimited.</summary>
     public int DropLimit => Mathf.Max(0, dropLimit);
@@ -126,7 +132,10 @@ public class LevelDefinition : ScriptableObject
 
         if (objectives == null || objectives.Count == 0)
         {
-            Debug.LogWarning($"{name}: has no objectives and can therefore never be won.", this);
+            if (!endless)
+            {
+                Debug.LogWarning($"{name}: has no objectives and can therefore never be won.", this);
+            }
         }
         else
         {

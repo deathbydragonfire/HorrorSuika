@@ -26,6 +26,9 @@ public class GameHudView : MonoBehaviour
     [SerializeField] private Button resetLevelButton;
     [SerializeField] private Button homeButton;
 
+    [Tooltip("Order-form body. Hidden on endless levels, which have no goals.")]
+    [SerializeField] private GameObject objectivePanel;
+
     [Header("Game Over")]
     [SerializeField] private GameObject gameOverPanel;
     [SerializeField] private TextMeshProUGUI gameOverLabel;
@@ -77,7 +80,7 @@ public class GameHudView : MonoBehaviour
         }
 
         BindButton(resetLevelButton, OnRestartClicked);
-        BindButton(homeButton, OnLevelSelectClicked);
+        BindButton(homeButton, OnHomeClicked);
         BindButton(restartButton, OnRestartClicked);
         BindButton(retryButton, OnRestartClicked);
         BindButton(nextLevelButton, OnNextLevelClicked);
@@ -465,10 +468,20 @@ public class GameHudView : MonoBehaviour
         int index = gameController != null ? gameController.CurrentLevelIndex : -1;
         levelNameLabel.fontSize = 36f;
         levelNameLabel.fontStyle = FontStyles.Bold;
+        bool hasGoals = level != null && level.Objectives != null && level.Objectives.Count > 0;
+        bool showOrder = hasGoals || LevelRequiresScore();
+        if (objectivePanel != null && objectivePanel.activeSelf != showOrder)
+        {
+            objectivePanel.SetActive(showOrder);
+        }
+
         if (orderFormTitle != null)
         {
-            orderFormTitle.SetActive(true);
-            SetSectionLabel(orderFormTitle, "Order form");
+            orderFormTitle.SetActive(hasGoals);
+            if (hasGoals)
+            {
+                SetSectionLabel(orderFormTitle, "Order form");
+            }
         }
 
         if (index >= 0)
@@ -511,6 +524,11 @@ public class GameHudView : MonoBehaviour
     private bool LevelRequiresScore()
     {
         LevelDefinition level = gameController != null ? gameController.CurrentLevel : null;
+        if (level != null && level.IsEndless)
+        {
+            return true;
+        }
+
         IReadOnlyList<LevelObjective> objectives = level != null ? level.Objectives : null;
         if (objectives == null)
         {
@@ -536,9 +554,8 @@ public class GameHudView : MonoBehaviour
             return;
         }
 
-        bool scoreOn = scoreLabel != null && scoreLabel.gameObject.activeSelf;
         bool limitOn = limitLabel != null && limitLabel.gameObject.activeSelf;
-        bool showRight = scoreOn || limitOn;
+        bool showRight = limitOn;
         Transform header = levelNameLabel.transform.parent;
         if (header == null)
         {
@@ -651,6 +668,14 @@ public class GameHudView : MonoBehaviour
         if (gameController != null)
         {
             gameController.TryAdvanceToNextLevel();
+        }
+    }
+
+    private void OnHomeClicked()
+    {
+        if (gameController != null)
+        {
+            gameController.ReturnToStart();
         }
     }
 

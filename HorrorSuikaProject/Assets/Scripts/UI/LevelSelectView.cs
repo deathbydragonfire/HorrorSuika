@@ -20,8 +20,8 @@ public class LevelSelectView : MonoBehaviour
     [Tooltip("Tile prefab instantiated once per level.")]
     [SerializeField] private LevelButtonView levelButtonPrefab;
 
-    [Tooltip("Optional button that wipes saved progress.")]
-    [SerializeField] private Button resetProgressButton;
+    [Tooltip("Optional button that returns to the title scene.")]
+    [SerializeField] private Button backButton;
 
     private readonly List<LevelButtonView> tiles = new List<LevelButtonView>();
 
@@ -48,25 +48,79 @@ public class LevelSelectView : MonoBehaviour
         {
             LevelDefinition level = levelSequence.Levels[i];
             LevelButtonView tile = Instantiate(levelButtonPrefab, gridRoot);
-            tile.Bind(level, i, LevelProgressStore.IsUnlocked(i), OnLevelSelected);
+            tile.Bind(level, i, LevelProgressStore.IsUnlocked(levelSequence, i), OnLevelSelected);
             tiles.Add(tile);
         }
+
+        FitButtons();
+    }
+
+    private void OnRectTransformDimensionsChange()
+    {
+        FitButtons();
+    }
+
+    /// <summary>
+    /// Fills the space under the title with a 3 by 2 grid in landscape and a 2 by 3 grid in portrait.
+    /// </summary>
+    private void FitButtons()
+    {
+        if (gridRoot == null || levelSequence == null || levelSequence.Count == 0)
+        {
+            return;
+        }
+
+        GridLayoutGroup grid = gridRoot.GetComponent<GridLayoutGroup>();
+        RectTransform gridRect = gridRoot as RectTransform;
+        RectTransform viewport = gridRect != null ? gridRect.parent as RectTransform : null;
+        if (grid == null || gridRect == null || viewport == null)
+        {
+            return;
+        }
+
+        gridRect.anchorMin = Vector2.zero;
+        gridRect.anchorMax = Vector2.one;
+        gridRect.pivot = new Vector2(0.5f, 1f);
+        gridRect.offsetMin = Vector2.zero;
+        gridRect.offsetMax = Vector2.zero;
+
+        float width = viewport.rect.width;
+        float height = viewport.rect.height;
+        if (width < 1f || height < 1f)
+        {
+            return;
+        }
+
+        bool portrait = Screen.height >= Screen.width;
+        int columns = portrait ? 2 : 3;
+        int rows = portrait ? 3 : 2;
+        float innerWidth = width - grid.padding.left - grid.padding.right;
+        float innerHeight = height - grid.padding.top - grid.padding.bottom;
+        float cellWidth = (innerWidth - grid.spacing.x * (columns - 1)) / columns;
+        float cellHeight = (innerHeight - grid.spacing.y * (rows - 1)) / rows;
+
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = columns;
+        grid.cellSize = new Vector2(Mathf.Max(1f, cellWidth), Mathf.Max(1f, cellHeight));
+        grid.childAlignment = TextAnchor.UpperCenter;
     }
 
     private void Start()
     {
-        if (resetProgressButton != null)
+        if (backButton != null)
         {
-            resetProgressButton.onClick.RemoveListener(OnResetProgressClicked);
-            resetProgressButton.onClick.AddListener(OnResetProgressClicked);
+            backButton.onClick.RemoveListener(OnBackClicked);
+            backButton.onClick.AddListener(OnBackClicked);
         }
 
         Refresh();
+        Canvas.ForceUpdateCanvases();
+        FitButtons();
     }
 
     private void OnLevelSelected(LevelDefinition level, int index)
     {
-        if (level == null)
+        if (level == null || !LevelProgressStore.IsUnlocked(levelSequence, index))
         {
             return;
         }
@@ -79,9 +133,8 @@ public class LevelSelectView : MonoBehaviour
         SceneFlow.LoadGame();
     }
 
-    private void OnResetProgressClicked()
+    private void OnBackClicked()
     {
-        LevelProgressStore.ResetProgress(levelSequence);
-        Refresh();
+        SceneFlow.LoadStart();
     }
 }
