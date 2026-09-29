@@ -12,9 +12,10 @@ public class LevelObjectiveRowView : MonoBehaviour
     private const float QuotaRowHeight = 96f;
     private const float FeatureLineHeight = 72f;
 
-    private static readonly Color Ink = new Color(0.12f, 0.12f, 0.11f, 1f);
-    private static readonly Color Paper = new Color(0.96f, 0.95f, 0.93f, 0f);
-    private static readonly Color Stripe = new Color(0.90f, 0.88f, 0.85f, 1f);
+    // Bone ink on the dark, blood-stained ticket. Stripes are a faint crimson wash.
+    private static readonly Color Ink = new Color(0.86f, 0.8f, 0.72f, 1f);
+    private static readonly Color Paper = new Color(0.07f, 0.025f, 0.03f, 0f);
+    private static readonly Color Stripe = new Color(0.3f, 0.03f, 0.05f, 0.35f);
 
     [SerializeField] private TextMeshProUGUI labelText;
     [SerializeField] private TextMeshProUGUI counterText;

@@ -30,9 +30,6 @@ public class MouthChomp : MonoBehaviour
     [SerializeField, Range(0f, 100f), Tooltip("Blend shape weight at the closed end of a breath. 100 is fully closed.")]
     private float breathClosedWeight = 75f;
 
-    [SerializeField, Range(0f, 0.35f), Tooltip("How far the host sphere's rendered radius swings with the breath, as a fraction of its radius.")]
-    private float breathPulseAmplitude = 0.06f;
-
     [Header("Bite")]
     [SerializeField, Min(0.04f), Tooltip("Seconds for one bite: open fully, chomp shut, and return to the breath.")]
     private float chompDuration = 0.55f;
@@ -42,7 +39,6 @@ public class MouthChomp : MonoBehaviour
     private float chompElapsed;
     private float biteStartWeight;
     private bool chomping;
-    private FleshVisualComponent hostFlesh;
 
     /// <summary>Mouth skinned mesh used for chomping. Resolved from children when unassigned.</summary>
     public SkinnedMeshRenderer MouthRenderer
@@ -81,7 +77,6 @@ public class MouthChomp : MonoBehaviour
         ResolveMouth();
         breathPhase = Random.Range(0f, Mathf.PI * 2f);
         chomping = false;
-        BindHost();
         ApplyBreath();
     }
 
@@ -89,17 +84,11 @@ public class MouthChomp : MonoBehaviour
     {
         // OnEnable can run before the nested mouth renderer finishes waking.
         ResolveMouth();
-        BindHost();
         ApplyBreath();
     }
 
     private void OnDisable()
     {
-        if (hostFlesh != null)
-        {
-            hostFlesh.ClearBreathDrive();
-        }
-
         chomping = false;
     }
 
@@ -115,7 +104,6 @@ public class MouthChomp : MonoBehaviour
         }
 
         breathPhase += Time.deltaTime * (Mathf.PI * 2f) / Mathf.Max(breathPeriod, 0.2f);
-        DriveHostPulse();
 
         if (chomping)
         {
@@ -178,26 +166,6 @@ public class MouthChomp : MonoBehaviour
         return Mathf.Lerp(breathClosedWeight, breathOpenWeight, openAmount);
     }
 
-    private void DriveHostPulse()
-    {
-        if (hostFlesh == null)
-        {
-            BindHost();
-        }
-
-        if (hostFlesh == null)
-        {
-            return;
-        }
-
-        hostFlesh.DriveBreath(BreathWave, breathPulseAmplitude);
-    }
-
-    private void BindHost()
-    {
-        hostFlesh = GetComponentInParent<FleshVisualComponent>();
-    }
-
     private void ResolveMouth()
     {
         if (mouthRenderer == null)
@@ -228,7 +196,6 @@ public class MouthChomp : MonoBehaviour
         breathPeriod = Mathf.Max(0.2f, breathPeriod);
         breathOpenWeight = Mathf.Clamp(breathOpenWeight, 0f, 100f);
         breathClosedWeight = Mathf.Clamp(breathClosedWeight, 0f, 100f);
-        breathPulseAmplitude = Mathf.Clamp(breathPulseAmplitude, 0f, 0.35f);
         chompDuration = Mathf.Max(0.04f, chompDuration);
         if (string.IsNullOrEmpty(blendShapeName))
         {

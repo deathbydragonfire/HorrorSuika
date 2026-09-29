@@ -33,7 +33,8 @@ public class MergeItemPool : MonoBehaviour
     }
 
     /// <summary>Takes an item of the requested tier from its pool and places it in the world.</summary>
-    public MergeItem Spawn(int tierIndex, Vector3 position, bool startKinematic)
+    /// <param name="rollDecorations">False when the caller will apply inherited decorations, as a merge does.</param>
+    public MergeItem Spawn(int tierIndex, Vector3 position, bool startKinematic, bool rollDecorations = true)
     {
         if (tierTable == null || itemPrefab == null)
         {
@@ -49,7 +50,7 @@ public class MergeItemPool : MonoBehaviour
 
         MergeItem item = GetPool(tierIndex).Get();
         item.transform.SetPositionAndRotation(new Vector3(position.x, position.y, 0f), Quaternion.identity);
-        item.Initialize(tierTable, tierIndex, startKinematic);
+        item.Initialize(tierTable, tierIndex, startKinematic, rollDecorations);
         item.gameObject.SetActive(true);
 
         activeItems.Add(item);

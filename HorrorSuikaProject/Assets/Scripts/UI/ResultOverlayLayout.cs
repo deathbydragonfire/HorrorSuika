@@ -25,6 +25,9 @@ public class ResultOverlayLayout : MonoBehaviour
     private void OnEnable()
     {
         Apply();
+        // Children's layout components enable after this one, so the height measured above can
+        // read as zero; invalidating the cache makes LateUpdate measure again before the frame draws.
+        cachedWidth = -1;
     }
 
     private void LateUpdate()

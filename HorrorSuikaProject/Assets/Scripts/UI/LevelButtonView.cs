@@ -8,8 +8,8 @@ using UnityEngine.UI;
 /// </summary>
 public class LevelButtonView : MonoBehaviour
 {
-    private static readonly Color UnlockedColor = new Color(0.9f, 0.9f, 0.93f);
-    private static readonly Color LockedColor = new Color(0.28f, 0.28f, 0.32f);
+    private static readonly Color UnlockedColor = new Color(0.07f, 0.02f, 0.025f, 0.88f);
+    private static readonly Color LockedColor = new Color(0.04f, 0.015f, 0.018f, 0.8f);
 
     [SerializeField] private Button button;
     [SerializeField] private Image background;

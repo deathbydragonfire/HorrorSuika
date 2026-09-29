@@ -149,7 +149,7 @@ private void ResolvePair(PendingMerge pending)
             return;
         }
 
-        MergeItem merged = itemPool.Spawn(resultTier, mergePosition, false);
+        MergeItem merged = itemPool.Spawn(resultTier, mergePosition, false, rollDecorations: false);
         if (merged == null)
         {
             return;

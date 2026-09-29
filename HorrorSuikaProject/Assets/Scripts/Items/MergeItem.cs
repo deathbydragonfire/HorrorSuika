@@ -104,7 +104,11 @@ public class MergeItem : MonoBehaviour
     }
 
     /// <summary>Applies the tier's physical and visual values to this instance.</summary>
-    public void Initialize(MergeItemTierTable table, int tierIndex, bool startKinematic)
+    /// <param name="rollDecorations">
+    /// False for merge results: they only inherit their parents' decorations, and a throwaway roll
+    /// would enable and disable skinned meshes such as the mouth in the same frame, leaving a bare hole.
+    /// </param>
+    public void Initialize(MergeItemTierTable table, int tierIndex, bool startKinematic, bool rollDecorations = true)
     {
         MergeItemTier tier = table != null ? table.GetTier(tierIndex) : null;
         if (tier == null)
@@ -176,7 +180,7 @@ public class MergeItem : MonoBehaviour
             body.collisionDetectionMode = CollisionDetectionMode.Continuous;
         }
 
-        if (decorations != null)
+        if (decorations != null && rollDecorations)
         {
             decorations.PopulateForNewSpawn(tierTable, TierIndex);
         }

@@ -142,12 +142,22 @@
         productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
         productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
         showBanner: unityShowBanner,
-        // Cap retina and phone canvases. The flesh raymarch fills every covered pixel,
-        // and a 3x itch embed will lose the WebGL context.
-        devicePixelRatio: (window.matchMedia && window.matchMedia("(pointer: coarse)").matches)
-          ? Math.min(window.devicePixelRatio || 1, 1.25)
-          : Math.min(window.devicePixelRatio || 1, 2)
+        devicePixelRatio: renderPixelRatio()
       };
+
+      // Desktop renders the canvas's long edge at no less than 2K (2560) and no more than 4K
+      // (3840), supersampling small itch embeds. Phones stay capped: the flesh raymarch fills
+      // every covered pixel, and a 3x itch embed will lose the WebGL context.
+      function renderPixelRatio() {
+        var native = window.devicePixelRatio || 1;
+        if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) {
+          return Math.min(native, 1.25);
+        }
+        // A hidden or unlaid-out canvas measures 0; fall back until the next resize.
+        var longEdge = Math.max(canvas.clientWidth, canvas.clientHeight);
+        if (longEdge < 64) return Math.min(native, 2);
+        return Math.min(Math.max(native, 2560 / longEdge), 3840 / longEdge, 4);
+      }
 
       loadingBar.style.display = "block";
 
@@ -158,6 +168,15 @@
           progressBarFull.style.width = 100 * progress + "%";
         }).then(function (unityInstance) {
           loadingBar.style.display = "none";
+          // Re-derive the ratio when the embed resizes or goes fullscreen.
+          function updatePixelRatio() {
+            unityInstance.Module.devicePixelRatio = renderPixelRatio();
+          }
+          updatePixelRatio();
+          window.addEventListener("resize", updatePixelRatio);
+          if (window.ResizeObserver) {
+            new ResizeObserver(updatePixelRatio).observe(canvas);
+          }
         }).catch(function (message) {
           unityShowBanner(String(message), "error");
         });

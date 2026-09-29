@@ -59,7 +59,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.08, g: 0.08, b: 0.1, a: 0.72}
+  m_Color: {r: 0.02, g: 0.005, b: 0.008, a: 0.78}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -143,15 +143,15 @@ MonoBehaviour:
       m_Calls: []
   m_text: Level
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: c1ccefcb7958e2e46b6317eeee24e50b, type: 2}
+  m_sharedMaterial: {fileID: -6605054589574424224, guid: c1ccefcb7958e2e46b6317eeee24e50b, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontColor: {r: 0.06, g: 0.06, b: 0.08, a: 1}
+  m_fontColor: {r: 0.86, g: 0.8, b: 0.72, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -174,11 +174,11 @@ MonoBehaviour:
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
   m_fontSizeMax: 72
-  m_fontStyle: 0
+  m_fontStyle: 16
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
   m_textAlignment: 65535
-  m_characterSpacing: 0
+  m_characterSpacing: 8
   m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
@@ -271,7 +271,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.45, g: 1, b: 0.55, a: 1}
+  m_Color: {r: 0.55, g: 0.06, b: 0.08, a: 0.9}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -363,7 +363,7 @@ MonoBehaviour:
   m_fontColor32:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontColor: {r: 0.28, g: 0.28, b: 0.32, a: 1}
+  m_fontColor: {r: 0.62, g: 0.56, b: 0.5, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -438,6 +438,9 @@ GameObject:
   - component: {fileID: 5069728371314030005}
   - component: {fileID: 3060443272761503980}
   - component: {fileID: 914514456204838899}
+  - component: {fileID: 769542824695375697}
+  - component: {fileID: 7291693548911222941}
+  - component: {fileID: 4754592338660934642}
   m_Layer: 0
   m_Name: LevelButton
   m_TagString: Untagged
@@ -489,7 +492,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.9, g: 0.9, b: 0.93, a: 1}
+  m_Color: {r: 0.07, g: 0.02, b: 0.025, a: 0.88}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -525,7 +528,7 @@ MonoBehaviour:
     m_SelectOnDown: {fileID: 0}
     m_SelectOnLeft: {fileID: 0}
     m_SelectOnRight: {fileID: 0}
-  m_Transition: 1
+  m_Transition: 0
   m_Colors:
     m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
     m_HighlightedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
@@ -568,6 +571,67 @@ MonoBehaviour:
   bestScoreLabel: {fileID: 3629210178627431606}
   completionTick: {fileID: 2847942967431277861}
   lockIcon: {fileID: 587930519085929595}
+--- !u!114 &769542824695375697
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7632173958427116030}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 871f19e15861c304e8f6101b782a0745, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UiSoundHooks
+--- !u!114 &7291693548911222941
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7632173958427116030}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
+  m_EffectColor: {r: 0.42, g: 0.04, b: 0.06, a: 0.85}
+  m_EffectDistance: {x: 2, y: -2}
+  m_UseGraphicAlpha: 0
+--- !u!114 &4754592338660934642
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7632173958427116030}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef38012c1795f454d966c164d57145c3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HorrorMenuButton
+  label: {fileID: 2447939202303105843}
+  panel: {fileID: 5069728371314030005}
+  edge: {fileID: 7291693548911222941}
+  edgeGraphic: {fileID: 0}
+  idleText: {r: 0.86, g: 0.8, b: 0.72, a: 1}
+  idlePanel: {r: 0.07, g: 0.02, b: 0.025, a: 0.88}
+  idleEdge: {r: 0.42, g: 0.04, b: 0.06, a: 0.85}
+  hoverText: {r: 1, g: 0.95, b: 0.88, a: 1}
+  hoverPanel: {r: 0.26, g: 0.02, b: 0.04, a: 0.94}
+  hoverEdge: {r: 0.9, g: 0.08, b: 0.1, a: 1}
+  hoverScale: 1.02
+  hoverTremble: 1.6
+  disabledText: {r: 0.4, g: 0.36, b: 0.33, a: 0.8}
+  disabledPanel: {r: 0.04, g: 0.015, b: 0.018, a: 0.8}
+  bloodDrip: {fileID: 0}
+  bloodSurfaceBelow: 1
+  bloodRunSeconds: 8
+  bloodFadeSeconds: 0.45
+  beatPulse: 0.15
+  twitchInterval: {x: 4, y: 10}
+  twitchPixels: 3
+  fadeSpeed: 10
 --- !u!1 &7774453550119409833
 GameObject:
   m_ObjectHideFlags: 0
@@ -635,15 +699,15 @@ MonoBehaviour:
       m_Calls: []
   m_text: LOCKED
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: c1ccefcb7958e2e46b6317eeee24e50b, type: 2}
+  m_sharedMaterial: {fileID: -6605054589574424224, guid: c1ccefcb7958e2e46b6317eeee24e50b, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontColor: {r: 0.85, g: 0.85, b: 0.9, a: 1}
+  m_fontColor: {r: 0.62, g: 0.56, b: 0.5, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -666,11 +730,11 @@ MonoBehaviour:
   m_enableAutoSizing: 1
   m_fontSizeMin: 18
   m_fontSizeMax: 36
-  m_fontStyle: 0
+  m_fontStyle: 16
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
   m_textAlignment: 65535
-  m_characterSpacing: 0
+  m_characterSpacing: 8
   m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0

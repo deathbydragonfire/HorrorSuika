@@ -81,6 +81,15 @@ public class GameController : MonoBehaviour
     /// <summary>Raised whenever the run state changes.</summary>
     public event Action<GameState> StateChanged;
 
+    /// <summary>Raised with the new value whenever the run is paused or resumed.</summary>
+    public event Action<bool> PausedChanged;
+
+    /// <summary>True while the pause menu holds the run frozen.</summary>
+    public bool IsPaused { get; private set; }
+
+    /// <summary>True in the states the pause menu may freeze; result screens are already a stop.</summary>
+    public bool CanPause => State == GameState.Playing || State == GameState.VictoryPending;
+
     /// <summary>Current run state.</summary>
     public GameState State { get; private set; } = GameState.Ready;
 
@@ -184,6 +193,29 @@ public class GameController : MonoBehaviour
         {
             restartAction.performed -= OnRestartPerformed;
         }
+
+        // Leaving the scene paused must not carry frozen time into the next one.
+        if (IsPaused)
+        {
+            Time.timeScale = 1f;
+            AudioListener.pause = false;
+        }
+    }
+
+    /// <summary>Freezes or resumes the run: physics and timers, gameplay sounds, and drop input.</summary>
+    public void SetPaused(bool paused)
+    {
+        if (paused == IsPaused || (paused && !CanPause))
+        {
+            return;
+        }
+
+        IsPaused = paused;
+        Time.timeScale = paused ? 0f : 1f;
+        // Gameplay voices freeze with time; music and UI sounds opt out of listener pause.
+        AudioListener.pause = paused;
+        itemDropper.SetInputEnabled(!paused && State == GameState.Playing);
+        PausedChanged?.Invoke(paused);
     }
 
     /// <summary>Applies the current level, resets every system, and begins a fresh run.</summary>
@@ -232,6 +264,7 @@ public class GameController : MonoBehaviour
     /// <summary>Clears the board and starts a new run without reloading the scene.</summary>
     public void Restart()
     {
+        SetPaused(false);
         StopSettleRoutine();
         itemDropper.SetInputEnabled(false);
         itemDropper.ClearHeldItem();
@@ -249,6 +282,7 @@ public class GameController : MonoBehaviour
             return;
         }
 
+        SetPaused(false);
         StopSettleRoutine();
         CurrentLevel = level;
         CurrentLevelIndex = index >= 0 ? index : (levelSequence != null ? levelSequence.IndexOf(level) : -1);
@@ -307,6 +341,7 @@ public class GameController : MonoBehaviour
     /// <summary>Returns to the level-select scene.</summary>
     public void ReturnToLevelSelect()
     {
+        SetPaused(false);
         if (levelSelection != null)
         {
             levelSelection.Clear();
@@ -319,6 +354,7 @@ public class GameController : MonoBehaviour
     /// <summary>Returns to the title scene.</summary>
     public void ReturnToStart()
     {
+        SetPaused(false);
         if (levelSelection != null)
         {
             levelSelection.Clear();
@@ -447,11 +483,20 @@ public class GameController : MonoBehaviour
 
     private void OnRestartPerformed(InputAction.CallbackContext context)
     {
+        // R under the pause menu would wipe the board the player is looking at.
+        if (IsPaused)
+        {
+            return;
+        }
+
         Restart();
     }
 
+    private int MaxTierIndex => ActiveTierTable != null ? ActiveTierTable.MaxTierIndex : 0;
+
     private void OnMergePerformed(MergeItem result, int resultTierIndex, Vector3 position, int awardedScore)
     {
+        AudioManager.PlayMerge(position, resultTierIndex, MaxTierIndex);
         scoreController.Add(awardedScore);
 
         // A tier becomes droppable once the player has produced it by merging.
@@ -465,6 +510,7 @@ public class GameController : MonoBehaviour
 
     private void OnTopTierPopped(Vector3 position, int awardedScore)
     {
+        AudioManager.PlayTopTierPop(position);
         scoreController.Add(awardedScore);
 
         if (State == GameState.VictoryPending)
@@ -475,6 +521,11 @@ public class GameController : MonoBehaviour
 
     private void OnItemDropped(MergeItem item)
     {
+        if (item != null)
+        {
+            AudioManager.PlayDrop(item.transform.position, item.TierIndex, MaxTierIndex);
+        }
+
         dropCount++;
 
         if (CurrentLevel == null || CurrentLevel.DropLimit <= 0 || dropCount < CurrentLevel.DropLimit)

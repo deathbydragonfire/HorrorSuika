@@ -34,6 +34,12 @@ public class TicketRuleGraphic : MaskableGraphic
         }
     }
 
+    /// <summary>Corner radius of a frame, in canvas units.</summary>
+    public float CornerRadius => cornerRadius;
+
+    /// <summary>How far the stroke sits inside the rect, in canvas units.</summary>
+    public float Inset => inset;
+
     protected override void OnEnable()
     {
         base.OnEnable();
